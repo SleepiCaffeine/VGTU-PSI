@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as api from "../api/client";
 import type { BetResult, Decision, State } from "../api/client";
+import { outcomeLabel, outcomeTone } from "../labels";
+import { ConfirmationPrompt } from "./ConfirmationPrompt";
 
 interface Props {
   tenantId: number;
@@ -22,9 +24,11 @@ export function GamblerView({ tenantId, state, onChange, onError }: Props) {
   const [decision, setDecision] = useState<Decision>();
   const [result, setResult] = useState<BetResult>();
   const [pending, setPending] = useState<Pending>();
-  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const betInFlight = useRef(false);
 
   const session = state.activeSession;
+  const pickedNumber = selection !== "red" && selection !== "black";
 
   async function start() {
     try {
@@ -49,7 +53,9 @@ export function GamblerView({ tenantId, state, onChange, onError }: Props) {
   }
 
   async function bet(wager: Wager, confirmation?: { id: number; text: string }) {
-    if (!session) return;
+    if (!session || betInFlight.current) return;
+    betInFlight.current = true;
+    setBusy(true);
     try {
       const placed = await api.placeBet(tenantId, session.id, {
         game: "roulette",
@@ -60,7 +66,6 @@ export function GamblerView({ tenantId, state, onChange, onError }: Props) {
       });
       setDecision(placed.decision);
       setResult(placed);
-      setTyped("");
       if (placed.decision.confirmation) {
         setPending({ ...placed.decision.confirmation, wager });
       } else if (placed.decision.outcome !== "CONFIRMATION_FAILED") {
@@ -69,6 +74,9 @@ export function GamblerView({ tenantId, state, onChange, onError }: Props) {
       onChange();
     } catch (cause) {
       onError(cause);
+    } finally {
+      betInFlight.current = false;
+      setBusy(false);
     }
   }
 
@@ -79,59 +87,83 @@ export function GamblerView({ tenantId, state, onChange, onError }: Props) {
 
       {session && (
         <>
-          <p>
-            Sesija #{session.id}: statymų {session.betCount}, nuostolis {session.netLoss}, vijimosi signalų{" "}
-            {session.chasingSignals}
-          </p>
-          <label>
-            Statymas{" "}
-            <input type="number" min={1} value={stake} onChange={(event) => setStake(Number(event.target.value))} />
-          </label>
-          <label>
-            Pasirinkimas{" "}
-            <input value={selection} onChange={(event) => setSelection(event.target.value)} size={6} />
-          </label>
-          <small>red, black arba skaičius 0–36</small>
-          <p>
-            <button onClick={() => bet({ selection, stake })}>Statyti</button>
-            <button onClick={end}>Baigti sesiją</button>
-          </p>
+          <div className="tiles">
+            <div className="tile">
+              <strong>{session.betCount}</strong>
+              <small>Statymai</small>
+            </div>
+            <div className="tile">
+              <strong>{session.netLoss}</strong>
+              <small>Nuostolis</small>
+            </div>
+            <div className="tile">
+              <strong>{state.chasingSignalsThisWeek} / 3</strong>
+              <small>Vijimosi signalai šią savaitę</small>
+            </div>
+          </div>
+          <div className="row">
+            <button className={`red ${selection === "red" ? "selected" : ""}`} onClick={() => setSelection("red")}>
+              Raudona
+            </button>
+            <button className={`black ${selection === "black" ? "selected" : ""}`} onClick={() => setSelection("black")}>
+              Juoda
+            </button>
+            <input
+              type="number"
+              min={0}
+              max={36}
+              placeholder="0–36"
+              aria-label="Skaičius"
+              value={pickedNumber ? selection : ""}
+              onChange={(event) => setSelection(event.target.value || "red")}
+            />
+          </div>
+          <div className="row">
+            <input
+              type="number"
+              min={1}
+              aria-label="Statymas"
+              value={stake}
+              onChange={(event) => setStake(Number(event.target.value))}
+            />
+            <button disabled={busy || pending !== undefined} onClick={() => bet({ selection, stake })}>
+              Statyti
+            </button>
+            <button className="secondary" onClick={end}>
+              Baigti sesiją
+            </button>
+          </div>
         </>
       )}
 
       {pending && (
-        <div>
-          <h3>Reikia patvirtinimo</h3>
-          {pending.waitSeconds > 0 && <p>Prieš patvirtindami palaukite {pending.waitSeconds} s.</p>}
-          {pending.kind === "CLICK" ? (
-            <button onClick={() => bet(pending.wager, { id: pending.id, text: "" })}>{pending.phrase}</button>
-          ) : (
-            <>
-              <p>Įveskite sakinį: „{pending.phrase}“</p>
-              <input value={typed} onChange={(event) => setTyped(event.target.value)} size={60} />
-              <button onClick={() => bet(pending.wager, { id: pending.id, text: typed })}>Patvirtinti</button>
-            </>
-          )}
-        </div>
+        <ConfirmationPrompt
+          key={pending.id}
+          kind={pending.kind}
+          phrase={pending.phrase}
+          waitSeconds={pending.waitSeconds}
+          busy={busy}
+          onCancel={() => setPending(undefined)}
+          onSubmit={(text) => bet(pending.wager, { id: pending.id, text })}
+        />
       )}
 
       {decision && (
-        <div>
-          <h3>Sprendimas</h3>
-          <ul>
-            <li>Rezultatas: {decision.outcome}</li>
-            <li>Priežastis: {decision.reason}</li>
-            {decision.outcome !== "DENIED" && <li>Statymas: {decision.stake}</li>}
-            {decision.nextAllocationAt && (
-              <li>Kitas skyrimas: {new Date(decision.nextAllocationAt).toLocaleString("lt-LT")}</li>
-            )}
-            {result?.round && (
-              <li>
-                Iškrito: {result.round.outcome}, išmoka {result.round.payout}
-              </li>
-            )}
-            {result?.session.endReason && <li>Sesija baigta: {result.session.endReason}</li>}
-          </ul>
+        <div className={`notice ${outcomeTone(decision.outcome)}`}>
+          <strong>{outcomeLabel(decision.outcome)}</strong>
+          {decision.outcome !== "DENIED" && decision.stake > 0 && <> · statymas {decision.stake}</>}
+          {result?.round && (
+            <>
+              {" "}
+              · iškrito {result.round.outcome}, išmoka {result.round.payout}
+            </>
+          )}
+          <small>
+            {decision.outcome} · {decision.reason}
+            {result?.session.endReason && ` · sesija baigta: ${result.session.endReason}`}
+            {decision.nextAllocationAt &&
+              ` · kitas skyrimas ${new Date(decision.nextAllocationAt).toLocaleDateString("lt-LT")}`}
+          </small>
         </div>
       )}
     </section>

@@ -1,29 +1,193 @@
+:root {
+  --bg: #f1f4f6;
+  --surface: #ffffff;
+  --text: #22303a;
+  --muted: #5f707c;
+  --border: #d5dde3;
+  --primary: #2f6f8f;
+  --primary-soft: #e1eef4;
+  --warning: #9a6200;
+  --warning-soft: #fdf1da;
+  --danger: #a8323a;
+  --danger-soft: #fae3e4;
+  --roulette-red: #a8323a;
+  --roulette-black: #2b333a;
+}
+
 body {
+  background: var(--bg);
+  color: var(--text);
   font-family: system-ui, sans-serif;
+  line-height: 1.4;
   margin: 0 auto;
   max-width: 720px;
   padding: 16px;
-  line-height: 1.4;
 }
 
-section {
-  border: 1px solid #bbb;
-  margin-bottom: 12px;
-  padding: 12px;
+h1 {
+  color: var(--primary);
+  margin: 0;
 }
 
 h2 {
-  font-size: 1.1rem;
-  margin-top: 0;
+  font-size: 1.05rem;
+  margin: 0 0 10px;
 }
 
-label,
-button,
-select,
-input {
-  margin-right: 8px;
+h3 {
+  font-size: 0.95rem;
+  margin: 12px 0 6px;
+}
+
+section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+a {
+  color: var(--primary);
+}
+
+small,
+.muted {
+  color: var(--muted);
+}
+
+button {
+  background: var(--primary);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 12px;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+button.secondary {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+button.red {
+  background: var(--roulette-red);
+}
+
+button.black {
+  background: var(--roulette-black);
+}
+
+button.selected {
+  outline: 3px solid var(--primary);
+  outline-offset: 1px;
+}
+
+input,
+select {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  max-width: 100%;
+  padding: 5px 8px;
+}
+
+.row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.tiles {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.tile {
+  background: var(--primary-soft);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.tile strong {
+  display: block;
+  font-size: 1.4rem;
+}
+
+.bar {
+  background: var(--primary-soft);
+  border-radius: 4px;
+  height: 10px;
+  margin: 12px 0 4px;
+  overflow: hidden;
+}
+
+.bar > div {
+  background: var(--primary);
+  height: 100%;
+}
+
+.pips {
+  display: inline-flex;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.pips span {
+  background: var(--border);
+  border-radius: 50%;
+  height: 12px;
+  width: 12px;
+}
+
+.pips span.on {
+  background: var(--warning);
+}
+
+.banner,
+.notice {
+  background: var(--primary-soft);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  margin: 8px 0;
+  padding: 8px 12px;
+}
+
+.warning {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+}
+
+.danger {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.banner {
+  font-weight: 600;
+}
+
+.notice small {
+  display: block;
+}
+
+.alerts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .error {
-  color: #b00020;
+  color: var(--danger);
 }

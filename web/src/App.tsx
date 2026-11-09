@@ -73,7 +73,7 @@ export function App() {
           {mode === "gambler" ? (
             <GamblerView key={tenantId} tenantId={tenantId} state={state} onChange={refresh} onError={report} />
           ) : (
-            <SupervisorView key={tenantId} tenantId={tenantId} onError={report} />
+            <SupervisorView key={tenantId} tenantId={tenantId} state={state} onRefresh={refresh} onError={report} />
           )}
         </>
       )}
