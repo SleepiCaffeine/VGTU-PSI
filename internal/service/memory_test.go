@@ -123,6 +123,29 @@ func (r memorySessions) ShiftBack(context.Context, int64, time.Duration) error {
 	return nil
 }
 
+func (r memorySessions) SumChasingSignalsSince(_ context.Context, tenantID int64, since time.Time) (int, error) {
+	total := 0
+	for _, session := range r.m.sessions {
+		if session.TenantID == tenantID && !session.StartedAt.Before(since) {
+			total += session.ChasingSignals
+		}
+	}
+	return total, nil
+}
+
+func (r memorySessions) LatestBreakUntil(_ context.Context, tenantID int64) (*time.Time, error) {
+	var latest *time.Time
+	for _, session := range r.m.sessions {
+		if session.TenantID != tenantID || session.BreakUntil == nil {
+			continue
+		}
+		if latest == nil || session.BreakUntil.After(*latest) {
+			latest = session.BreakUntil
+		}
+	}
+	return latest, nil
+}
+
 type memoryBets struct{ m *memory }
 
 func (r memoryBets) Create(_ context.Context, bet *model.Bet) error {

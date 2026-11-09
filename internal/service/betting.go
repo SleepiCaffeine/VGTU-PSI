@@ -40,8 +40,7 @@ func (s *BettingService) PlaceBet(ctx context.Context, tenantID, sessionID int64
 func (s *BettingService) placeBet(
 	ctx context.Context, repos Repositories, tenantID, sessionID int64, request model.BetRequest, g game.Game,
 ) (model.BetResult, error) {
-	now := s.deps.Clock.Now()
-	plan, err := currentPlan(ctx, repos, tenantID, now)
+	plan, now, err := currentPlan(ctx, repos, tenantID, s.deps.Clock)
 	if err != nil {
 		return model.BetResult{}, err
 	}
@@ -58,9 +57,15 @@ func (s *BettingService) placeBet(
 		return model.BetResult{}, err
 	}
 
+	weeklySignals, err := repos.Sessions.SumChasingSignalsSince(ctx, tenantID, plan.WeekStart)
+	if err != nil {
+		return model.BetResult{}, fmt.Errorf("count chasing signals: %w", err)
+	}
+
 	decision := s.deps.Engine.DecideBet(engine.Input{
 		Now: now, Settings: settings, Plan: plan, Session: &session,
-		RequestedStake: request.Stake, HouseEdge: g.HouseEdge(),
+		ChasingSignalsThisWeek: weeklySignals,
+		RequestedStake:         request.Stake, HouseEdge: g.HouseEdge(),
 		ConfirmationSubmitted: request.ConfirmationID != nil,
 		Confirmation:          confirmation,
 		ConfirmationText:      request.ConfirmationText,
@@ -171,11 +176,11 @@ func persistEffects(ctx context.Context, repos Repositories, session *model.Sess
 	if err != nil {
 		return fmt.Errorf("save session: %w", err)
 	}
-	if !decision.Effects.NotifySupervisor {
+	if decision.Effects.AlertReason == "" {
 		return nil
 	}
 	err = repos.Alerts.Create(ctx, &model.Alert{
-		TenantID: session.TenantID, SessionID: session.ID, Reason: decision.Reason, CreatedAt: now,
+		TenantID: session.TenantID, SessionID: session.ID, Reason: decision.Effects.AlertReason, CreatedAt: now,
 	})
 	if err != nil {
 		return fmt.Errorf("create alert: %w", err)

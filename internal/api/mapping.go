@@ -7,13 +7,14 @@ import (
 
 func toState(state model.State) gen.State {
 	response := gen.State{
-		InitialAllocation: state.Plan.InitialAllocation,
-		Allocation:        state.Plan.Allocation,
-		Balance:           state.Plan.Balance,
-		WeekNumber:        state.Plan.WeekNumber,
-		ProgressPercent:   state.ProgressPercent,
-		FrictionLevel:     state.FrictionLevel,
-		NextAllocationAt:  state.NextAllocationAt,
+		InitialAllocation:      state.Plan.InitialAllocation,
+		Allocation:             state.Plan.Allocation,
+		Balance:                state.Plan.Balance,
+		WeekNumber:             state.Plan.WeekNumber,
+		ProgressPercent:        state.ProgressPercent,
+		FrictionLevel:          state.FrictionLevel,
+		ChasingSignalsThisWeek: state.ChasingSignalsThisWeek,
+		NextAllocationAt:       state.NextAllocationAt,
 	}
 	if state.ActiveSession != nil {
 		active := toSession(*state.ActiveSession)
@@ -30,6 +31,7 @@ func toSession(session model.Session) gen.Session {
 		NetLoss:        session.NetLoss,
 		BetCount:       session.BetCount,
 		ChasingSignals: session.ChasingSignals,
+		RapidFlags:     session.RapidFlags,
 		BreakUntil:     session.BreakUntil,
 	}
 	if session.EndReason != "" {

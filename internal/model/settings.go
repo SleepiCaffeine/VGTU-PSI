@@ -16,4 +16,6 @@ type RuleSettings struct {
 	FrictionWaitSeconds   int   `gorm:"not null"`
 	WeeksPerFrictionLevel int   `gorm:"not null"`
 	BetsPerFrictionLevel  int   `gorm:"not null"`
+	RapidBetSeconds       int   `gorm:"not null"`
+	RapidBetLimit         int   `gorm:"not null"`
 }

@@ -90,9 +90,39 @@ func (r sessionRepository) ShiftBack(ctx context.Context, tenantID int64, by tim
 		Model(&model.Session{}).
 		Scopes(inTenant(tenantID)).
 		Updates(map[string]any{
-			"started_at": gorm.Expr("DATE_SUB(started_at, INTERVAL ? SECOND)", seconds),
-			"ended_at":   gorm.Expr("DATE_SUB(ended_at, INTERVAL ? SECOND)", seconds),
+			"started_at":  gorm.Expr("DATE_SUB(started_at, INTERVAL ? SECOND)", seconds),
+			"ended_at":    gorm.Expr("DATE_SUB(ended_at, INTERVAL ? SECOND)", seconds),
+			"break_until": gorm.Expr("DATE_SUB(break_until, INTERVAL ? SECOND)", seconds),
 		}).Error
+}
+
+func (r sessionRepository) SumChasingSignalsSince(ctx context.Context, tenantID int64, since time.Time) (int, error) {
+	var total int64
+	err := r.db.WithContext(ctx).
+		Model(&model.Session{}).
+		Scopes(inTenant(tenantID)).
+		Where("started_at >= ?", since).
+		Select("COALESCE(SUM(chasing_signals), 0)").
+		Scan(&total).Error
+	return int(total), err
+}
+
+func (r sessionRepository) LatestBreakUntil(ctx context.Context, tenantID int64) (*time.Time, error) {
+	var sessions []model.Session
+	err := r.db.WithContext(ctx).
+		Scopes(inTenant(tenantID)).
+		Where("break_until IS NOT NULL").
+		Order("break_until DESC").
+		Limit(1).
+		Find(&sessions).Error
+	if err != nil {
+		return nil, err
+	}
+	latest := firstSession(sessions)
+	if latest == nil {
+		return nil, nil
+	}
+	return latest.BreakUntil, nil
 }
 
 func firstSession(sessions []model.Session) *model.Session {

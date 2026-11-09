@@ -11,6 +11,10 @@ func ApplyEffects(s *model.Session, effects model.Effects, now time.Time) {
 	if effects.ChasingSignal {
 		s.ChasingSignals++
 	}
+	if effects.RapidFlag {
+		s.RapidFlags++
+		s.RapidStreak = 0
+	}
 	if effects.BreakUntil != nil {
 		s.BreakUntil = effects.BreakUntil
 	}
@@ -26,6 +30,8 @@ func SettleRound(plan *model.Plan, s *model.Session, settings model.RuleSettings
 	s.BetCount++
 	s.LastStake = stake
 	s.LastLost = payout < stake
+	s.RapidStreak = nextRapidStreak(*s, settings, now)
+	s.LastBetAt = &now
 	if s.NetLoss >= settings.StopLoss {
 		s.End(model.ReasonStopLossReached, now)
 	}

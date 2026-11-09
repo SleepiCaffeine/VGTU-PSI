@@ -174,7 +174,7 @@ components:
           type: string
     Session:
       type: object
-      required: [id, startedAt, netLoss, betCount, chasingSignals]
+      required: [id, startedAt, netLoss, betCount, chasingSignals, rapidFlags]
       properties:
         id:
           type: integer
@@ -193,12 +193,14 @@ components:
           type: integer
         chasingSignals:
           type: integer
+        rapidFlags:
+          type: integer
         breakUntil:
           type: string
           format: date-time
     State:
       type: object
-      required: [initialAllocation, allocation, balance, weekNumber, progressPercent, frictionLevel, nextAllocationAt]
+      required: [initialAllocation, allocation, balance, weekNumber, progressPercent, frictionLevel, chasingSignalsThisWeek, nextAllocationAt]
       properties:
         initialAllocation:
           type: integer
@@ -211,6 +213,8 @@ components:
         progressPercent:
           type: integer
         frictionLevel:
+          type: integer
+        chasingSignalsThisWeek:
           type: integer
         nextAllocationAt:
           type: string
