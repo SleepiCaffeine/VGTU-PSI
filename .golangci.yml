@@ -1,0 +1,31 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - noinlineerr
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    revive:
+      rules:
+        - name: var-naming
+        - name: error-naming
+        - name: error-strings
+        - name: receiver-naming
+        - name: indent-error-flow
+        - name: unused-parameter
+  exclusions:
+    paths:
+      - internal/api/gen
+      - web/node_modules
+formatters:
+  enable:
+    - gofumpt
+  exclusions:
+    paths:
+      - internal/api/gen
+      - web/node_modules

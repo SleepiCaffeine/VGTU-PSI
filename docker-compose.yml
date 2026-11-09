@@ -1,0 +1,20 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: nuolydis
+      MYSQL_USER: nuolydis
+      MYSQL_PASSWORD: nuolydis
+      MYSQL_ROOT_PASSWORD: nuolydis-root
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -unuolydis -pnuolydis --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+volumes:
+  mysql-data:
