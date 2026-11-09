@@ -24,7 +24,7 @@ func (e *Engine) DecideBet(in Input) model.Decision {
 		Reason:         model.ReasonRulesPassed,
 		RequestedStake: in.RequestedStake,
 		Stake:          in.RequestedStake,
-		FrictionLevel:  FrictionLevel(in.Plan, in.Settings, in.Session),
+		FrictionLevel:  FrictionLevel(in.Plan, in.Settings, in.Session, in.ChasingSignalsThisWeek),
 	}
 	run(e.betRules, in, &d)
 	return d

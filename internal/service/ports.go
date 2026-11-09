@@ -40,6 +40,8 @@ type SessionRepository interface {
 	LastEndedAt(ctx context.Context, tenantID int64) (*time.Time, error)
 	CountEndedBetween(ctx context.Context, tenantID int64, reason model.Reason, from, to time.Time) (int, error)
 	ShiftBack(ctx context.Context, tenantID int64, by time.Duration) error
+	SumChasingSignalsSince(ctx context.Context, tenantID int64, since time.Time) (int, error)
+	LatestBreakUntil(ctx context.Context, tenantID int64) (*time.Time, error)
 }
 
 type BetRepository interface {

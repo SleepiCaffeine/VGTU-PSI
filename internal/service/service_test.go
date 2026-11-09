@@ -103,6 +103,24 @@ func TestChasingLimitPersistsEndAndAlert(t *testing.T) {
 	}
 }
 
+func TestChasingSignalAlertsSupervisor(t *testing.T) {
+	m := newMemory()
+	seedTenant(m, tenantA, 1, 480)
+	seedSession(m, tenantA, 10, func(s *model.Session) { s.BetCount, s.LastStake, s.LastLost = 1, 20, true })
+
+	result, err := service.NewBettingService(deps(m, wednesday)).PlaceBet(context.Background(), tenantA, 10, bet(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Decision.Outcome != model.OutcomeAccepted {
+		t.Fatalf("outcome = %s", result.Decision.Outcome)
+	}
+	if len(m.alerts) != 1 || m.alerts[0].Reason != model.ReasonChasingSignal {
+		t.Errorf("alerts = %+v", m.alerts)
+	}
+}
+
 func TestConfirmationIsSingleUse(t *testing.T) {
 	m := newMemory()
 	seedTenant(m, tenantA, 9, 500)
@@ -119,6 +137,7 @@ func TestConfirmationIsSingleUse(t *testing.T) {
 	}
 	id := asked.Decision.Confirmation.ID
 	phrase := asked.Decision.Confirmation.Phrase
+	afterWait := service.NewBettingService(deps(m, wednesday.Add(2*time.Second)))
 
 	attempts := []struct {
 		name        string
@@ -138,7 +157,7 @@ func TestConfirmationIsSingleUse(t *testing.T) {
 			request.ConfirmationID = &id
 			request.ConfirmationText = attempt.text
 
-			result, err := betting.PlaceBet(ctx, tenantA, 10, request)
+			result, err := afterWait.PlaceBet(ctx, tenantA, 10, request)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -220,6 +239,71 @@ func TestStartSession(t *testing.T) {
 				t.Errorf("session = %+v", result.Session)
 			}
 		})
+	}
+}
+
+func TestRestartCannotDodgeChasingRules(t *testing.T) {
+	breakEnds := wednesday.Add(time.Minute)
+	nextMonday := weekStart.AddDate(0, 0, 7)
+
+	tests := []struct {
+		name       string
+		mutate     func(*model.Session)
+		wantReason model.Reason
+		wantNext   *time.Time
+	}{
+		{"ending a session does not skip its break", func(s *model.Session) {
+			s.BreakUntil = &breakEnds
+			s.End(model.ReasonUserEnded, wednesday.Add(-time.Second))
+		}, model.ReasonBreakActive, nil},
+		{"a chasing stop locks the rest of the week", func(s *model.Session) {
+			s.End(model.ReasonChasingLimit, wednesday.Add(-time.Second))
+		}, model.ReasonChasingLockout, &nextMonday},
+		{"last week's stop no longer applies", func(s *model.Session) {
+			s.End(model.ReasonChasingLimit, weekStart.Add(-time.Hour))
+		}, model.ReasonRulesPassed, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newMemory()
+			seedTenant(m, tenantA, 1, 100)
+			seedSession(m, tenantA, 10, tt.mutate)
+
+			result, err := service.NewSessionService(deps(m, wednesday)).Start(context.Background(), tenantA)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if result.Decision.Reason != tt.wantReason {
+				t.Fatalf("reason = %s, want %s", result.Decision.Reason, tt.wantReason)
+			}
+			if tt.wantNext != nil && (result.Decision.NextAllocationAt == nil || !result.Decision.NextAllocationAt.Equal(*tt.wantNext)) {
+				t.Errorf("next allocation = %v, want %v", result.Decision.NextAllocationAt, tt.wantNext)
+			}
+		})
+	}
+}
+
+func TestChasingSignalsCarryAcrossSessions(t *testing.T) {
+	m := newMemory()
+	seedTenant(m, tenantA, 1, 480)
+	seedSession(m, tenantA, 10, func(s *model.Session) {
+		s.ChasingSignals = 2
+		s.End(model.ReasonUserEnded, wednesday.Add(-time.Second))
+	})
+	seedSession(m, tenantA, 11, func(s *model.Session) { s.BetCount, s.LastStake, s.LastLost = 1, 20, true })
+
+	result, err := service.NewBettingService(deps(m, wednesday)).PlaceBet(context.Background(), tenantA, 11, bet(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Decision.Reason != model.ReasonChasingLimit {
+		t.Errorf("reason = %s, want CHASING_LIMIT", result.Decision.Reason)
+	}
+	if m.sessions[11].EndReason != model.ReasonChasingLimit {
+		t.Errorf("session = %+v", m.sessions[11])
 	}
 }
 

@@ -153,6 +153,7 @@ export interface components {
             netLoss: number;
             betCount: number;
             chasingSignals: number;
+            rapidFlags: number;
             /** Format: date-time */
             breakUntil?: string;
         };
@@ -163,6 +164,7 @@ export interface components {
             weekNumber: number;
             progressPercent: number;
             frictionLevel: number;
+            chasingSignalsThisWeek: number;
             /** Format: date-time */
             nextAllocationAt: string;
             activeSession?: components["schemas"]["Session"];

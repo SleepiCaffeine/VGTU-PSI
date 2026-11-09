@@ -31,13 +31,14 @@ func (chasingRule) Evaluate(in Input, d *model.Decision) bool {
 		return false
 	}
 	d.Effects.ChasingSignal = true
-	if in.Session.ChasingSignals+1 >= chasingSignalLimit {
+	if in.ChasingSignalsThisWeek+1 >= chasingSignalLimit {
 		d.Effects.EndReason = model.ReasonChasingLimit
-		d.Effects.NotifySupervisor = true
+		d.Effects.AlertReason = model.ReasonChasingLimit
 		return reject(d, model.ReasonChasingLimit)
 	}
 	breakUntil := in.Now.Add(time.Duration(in.Settings.ChasingBreakSeconds) * time.Second)
 	d.Effects.BreakUntil = &breakUntil
+	d.Effects.AlertReason = model.ReasonChasingSignal
 	return false
 }
 

@@ -80,6 +80,7 @@ type Session struct {
 	EndedAt        *time.Time `json:"endedAt,omitempty"`
 	Id             int64      `json:"id"`
 	NetLoss        int        `json:"netLoss"`
+	RapidFlags     int        `json:"rapidFlags"`
 	StartedAt      time.Time  `json:"startedAt"`
 }
 
@@ -91,14 +92,15 @@ type SessionStartResult struct {
 
 // State defines model for State.
 type State struct {
-	ActiveSession     *Session  `json:"activeSession,omitempty"`
-	Allocation        int       `json:"allocation"`
-	Balance           int       `json:"balance"`
-	FrictionLevel     int       `json:"frictionLevel"`
-	InitialAllocation int       `json:"initialAllocation"`
-	NextAllocationAt  time.Time `json:"nextAllocationAt"`
-	ProgressPercent   int       `json:"progressPercent"`
-	WeekNumber        int       `json:"weekNumber"`
+	ActiveSession          *Session  `json:"activeSession,omitempty"`
+	Allocation             int       `json:"allocation"`
+	Balance                int       `json:"balance"`
+	ChasingSignalsThisWeek int       `json:"chasingSignalsThisWeek"`
+	FrictionLevel          int       `json:"frictionLevel"`
+	InitialAllocation      int       `json:"initialAllocation"`
+	NextAllocationAt       time.Time `json:"nextAllocationAt"`
+	ProgressPercent        int       `json:"progressPercent"`
+	WeekNumber             int       `json:"weekNumber"`
 }
 
 // Tenant defines model for Tenant.

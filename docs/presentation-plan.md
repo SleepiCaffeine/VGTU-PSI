@@ -7,8 +7,8 @@ Pasiruošimas: paleista „Docker Desktop“, įvykdyta `go run ./cmd/dev -reset
 | 1 | 1 min | Problema, dvi veiksenos | Pagrindinis modulis yra taisyklių variklis, žaidimas tik jį naudoja |
 | 2 | 2 min | Poros A statymas 20, `ACCEPTED` | Serveris nustato rezultatą, sprendimas turi priežastį |
 | 3 | 1 min | Savaitės keitimas, 420 ir 16 % | Pažanga vienoda abiem naudotojams |
-| 4 | 2 min | Poros B statymas 40, `CHASING_LIMIT`, įspėjimas | Konfliktas tarp vijimosi ir statymo ribų sprendžiamas eilės tvarka |
-| 5 | 1 min | Neteisingas sakinys, `CONFIRMATION_FAILED` | Patvirtinimą tikrina serveris, jis vienkartinis |
+| 4 | 2 min | Poros B statymas 40, `CHASING_LIMIT`, įspėjimas, nauja sesija atmetama (`CHASING_LOCKOUT`) | Konfliktas tarp vijimosi ir statymo ribų sprendžiamas eilės tvarka |
+| 5 | 1 min | Poros C neteisingas sakinys, `CONFIRMATION_FAILED` | Patvirtinimą tikrina serveris, jis vienkartinis |
 | 6 | 1 min | `curl` su `403` ir `404` | Atskyrimas yra ne sąsajoje: tikrinimas tarpinėje programoje ir `inTenant` saugykloje |
 | 7 | 1 min | `go test -tags=integration -p 1 ./...` | Scenarijai paimti iš I užduoties |
 | 8 | 2 min | Kodo struktūra, `engine/registry.go` | Priklausomybės nukreiptos į vidų |

@@ -26,7 +26,11 @@ const (
 	ReasonSessionTimeLimit     Reason = "SESSION_TIME_LIMIT"
 	ReasonUserEnded            Reason = "USER_ENDED"
 	ReasonChasingBreak         Reason = "CHASING_BREAK"
+	ReasonRapidBetting         Reason = "RAPID_BETTING"
+	ReasonChasingSignal        Reason = "CHASING_SIGNAL"
 	ReasonChasingLimit         Reason = "CHASING_LIMIT"
+	ReasonChasingLockout       Reason = "CHASING_LOCKOUT"
+	ReasonBreakActive          Reason = "BREAK_ACTIVE"
 	ReasonInvalidStake         Reason = "INVALID_STAKE"
 	ReasonNoStakeAvailable     Reason = "NO_STAKE_AVAILABLE"
 	ReasonStopLossCap          Reason = "STOP_LOSS_CAP"
@@ -49,10 +53,11 @@ type ConfirmationRequest struct {
 
 // Effects are the state changes a decision causes besides moving points.
 type Effects struct {
-	ChasingSignal    bool
-	BreakUntil       *time.Time
-	EndReason        Reason
-	NotifySupervisor bool
+	ChasingSignal bool
+	RapidFlag     bool
+	BreakUntil    *time.Time
+	EndReason     Reason
+	AlertReason   Reason
 }
 
 // Decision is the rule engine's answer to a session start or a bet.

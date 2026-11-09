@@ -10,6 +10,9 @@ import (
 // ClickPhrase is the acknowledgement shown for click confirmations.
 const ClickPhrase = "Taip, tai nuostolingas statymas"
 
+// minConfirmationWaitSeconds keeps every confirmation from being accepted instantly.
+const minConfirmationWaitSeconds = 1
+
 // LossPhrase states the average cost of a stake in Lithuanian number format.
 func LossPhrase(stake int, houseEdge float64) string {
 	loss := strings.Replace(fmt.Sprintf("%.2f", float64(stake)*houseEdge), ".", ",", 1)
@@ -39,14 +42,14 @@ func (frictionRule) Evaluate(in Input, d *model.Decision) bool {
 
 func requiredConfirmation(in Input, d *model.Decision) *model.ConfirmationRequest {
 	regularly := in.Session.BetCount%in.Settings.ConfirmEveryBets == 0
-	click := &model.ConfirmationRequest{Kind: model.ConfirmationClick, Phrase: ClickPhrase}
-	text := &model.ConfirmationRequest{Kind: model.ConfirmationText, Phrase: LossPhrase(d.Stake, in.HouseEdge)}
+	click := &model.ConfirmationRequest{Kind: model.ConfirmationClick, Phrase: ClickPhrase, WaitSeconds: minConfirmationWaitSeconds}
+	text := &model.ConfirmationRequest{Kind: model.ConfirmationText, Phrase: LossPhrase(d.Stake, in.HouseEdge), WaitSeconds: minConfirmationWaitSeconds}
 
 	switch {
 	case d.FrictionLevel >= 4:
 		return text
 	case d.FrictionLevel == 3 && regularly:
-		text.WaitSeconds = in.Settings.FrictionWaitSeconds
+		text.WaitSeconds = max(in.Settings.FrictionWaitSeconds, minConfirmationWaitSeconds)
 		return text
 	case d.FrictionLevel == 2 && regularly:
 		return click

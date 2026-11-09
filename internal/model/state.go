@@ -4,11 +4,12 @@ import "time"
 
 // State is the view of a tenant's progress shared by both pair members.
 type State struct {
-	Plan             Plan
-	ProgressPercent  int
-	FrictionLevel    int
-	ActiveSession    *Session
-	NextAllocationAt time.Time
+	Plan                   Plan
+	ProgressPercent        int
+	FrictionLevel          int
+	ChasingSignalsThisWeek int
+	ActiveSession          *Session
+	NextAllocationAt       time.Time
 }
 
 // RoundResult is what a game produced for an accepted bet.

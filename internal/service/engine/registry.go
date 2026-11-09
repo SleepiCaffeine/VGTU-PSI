@@ -6,6 +6,8 @@ func Default() *Engine {
 		[]Rule{
 			noOpenSessionRule{},
 			noCreditsRule{},
+			chasingLockoutRule{},
+			breakActiveRule{},
 			allowedHoursRule{},
 			weeklySessionLimitRule{},
 			cooldownRule{},
@@ -13,6 +15,7 @@ func Default() *Engine {
 		[]Rule{
 			sessionActiveRule{},
 			forcedBreakRule{},
+			rapidBettingRule{},
 			chasingRule{},
 			stakeLimitsRule{},
 			frictionRule{},

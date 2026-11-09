@@ -14,6 +14,9 @@ type Session struct {
 	BreakUntil     *time.Time
 	LastStake      int  `gorm:"not null"`
 	LastLost       bool `gorm:"not null"`
+	LastBetAt      *time.Time
+	RapidStreak    int `gorm:"not null"`
+	RapidFlags     int `gorm:"not null"`
 }
 
 func (s Session) Ended() bool {

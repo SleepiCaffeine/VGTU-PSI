@@ -27,8 +27,7 @@ func (s *SessionService) Start(ctx context.Context, tenantID int64) (model.Sessi
 }
 
 func (s *SessionService) start(ctx context.Context, repos Repositories, tenantID int64) (model.SessionStartResult, error) {
-	now := s.deps.Clock.Now()
-	plan, err := currentPlan(ctx, repos, tenantID, now)
+	plan, now, err := currentPlan(ctx, repos, tenantID, s.deps.Clock)
 	if err != nil {
 		return model.SessionStartResult{}, err
 	}
@@ -49,8 +48,18 @@ func (s *SessionService) start(ctx context.Context, repos Repositories, tenantID
 		return model.SessionStartResult{}, fmt.Errorf("load last session: %w", err)
 	}
 
+	stops, err := repos.Sessions.CountEndedBetween(ctx, tenantID, model.ReasonChasingLimit, plan.WeekStart, engine.NextWeekStart(plan.WeekStart))
+	if err != nil {
+		return model.SessionStartResult{}, fmt.Errorf("count chasing stops: %w", err)
+	}
+	latestBreak, err := repos.Sessions.LatestBreakUntil(ctx, tenantID)
+	if err != nil {
+		return model.SessionStartResult{}, fmt.Errorf("load latest break: %w", err)
+	}
+
 	decision := s.deps.Engine.DecideSessionStart(engine.Input{
 		Now: now, Settings: settings, Plan: plan, Session: open, SessionsThisWeek: started, LastSessionEndedAt: lastEnded,
+		ChasingStopsThisWeek: stops, LatestBreakUntil: latestBreak,
 	})
 	if !decision.Accepted() {
 		return model.SessionStartResult{Decision: decision}, nil
