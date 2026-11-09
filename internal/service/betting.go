@@ -40,61 +40,96 @@ func (s *BettingService) PlaceBet(ctx context.Context, tenantID, sessionID int64
 func (s *BettingService) placeBet(
 	ctx context.Context, repos Repositories, tenantID, sessionID int64, request model.BetRequest, g game.Game,
 ) (model.BetResult, error) {
-	plan, now, err := currentPlan(ctx, repos, tenantID, s.deps.Clock)
+	loaded, err := loadBetContext(ctx, repos, s.deps.Clock, tenantID, sessionID, request)
 	if err != nil {
 		return model.BetResult{}, err
+	}
+
+	decision := s.deps.Engine.DecideBet(loaded.engineInput(request, g.HouseEdge()))
+
+	if decision.Outcome == model.OutcomeConfirmationRequired {
+		id, err := createConfirmation(ctx, repos, loaded.session, decision, loaded.now)
+		if err != nil {
+			return model.BetResult{}, err
+		}
+		decision = decision.WithConfirmationID(id)
+	}
+
+	plan, session := loaded.plan, loaded.session
+	var round *model.RoundResult
+	if decision.Accepted() {
+		err = consumeConfirmation(ctx, repos, loaded.confirmation, loaded.now)
+		if err != nil {
+			return model.BetResult{}, err
+		}
+		played := g.Play(decision.Stake, request.Selection, s.deps.Random)
+		plan, session = engine.SettleRound(plan, session, loaded.settings, decision.Stake, played.Payout, loaded.now)
+		err = saveRound(ctx, repos, plan, newBet(session, g, request, decision, played, loaded.now))
+		if err != nil {
+			return model.BetResult{}, err
+		}
+		round = &model.RoundResult{Outcome: played.Outcome, Payout: played.Payout}
+	}
+
+	session, err = persistEffects(ctx, repos, session, decision.Verdict.Effects, loaded.now)
+	if err != nil {
+		return model.BetResult{}, err
+	}
+	return model.BetResult{Decision: decision, Round: round, Balance: plan.Balance, Session: session}, nil
+}
+
+// betContext is the stored state a bet is decided against.
+type betContext struct {
+	now          time.Time
+	plan         model.Plan
+	settings     model.RuleSettings
+	session      model.Session
+	week         model.WeekActivity
+	confirmation *model.Confirmation
+}
+
+func loadBetContext(
+	ctx context.Context, repos Repositories, clock Clock, tenantID, sessionID int64, request model.BetRequest,
+) (betContext, error) {
+	plan, now, err := currentPlan(ctx, repos, tenantID, clock)
+	if err != nil {
+		return betContext{}, err
 	}
 	settings, err := repos.Settings.Get(ctx, tenantID)
 	if err != nil {
-		return model.BetResult{}, fmt.Errorf("load settings: %w", err)
+		return betContext{}, fmt.Errorf("load settings: %w", err)
 	}
 	session, err := repos.Sessions.Get(ctx, tenantID, sessionID)
 	if err != nil {
-		return model.BetResult{}, fmt.Errorf("load session: %w", err)
+		return betContext{}, fmt.Errorf("load session: %w", err)
+	}
+	week, err := repos.History.WeekActivity(ctx, tenantID, plan.WeekStart, engine.NextWeekStart(plan.WeekStart))
+	if err != nil {
+		return betContext{}, fmt.Errorf("load week activity: %w", err)
 	}
 	confirmation, err := submittedConfirmation(ctx, repos, tenantID, request)
 	if err != nil {
-		return model.BetResult{}, err
+		return betContext{}, err
 	}
+	return betContext{
+		now: now, plan: plan, settings: settings, session: session, week: week, confirmation: confirmation,
+	}, nil
+}
 
-	weeklySignals, err := repos.Sessions.SumChasingSignalsSince(ctx, tenantID, plan.WeekStart)
-	if err != nil {
-		return model.BetResult{}, fmt.Errorf("count chasing signals: %w", err)
+func (c betContext) engineInput(request model.BetRequest, houseEdge float64) engine.BetInput {
+	input := engine.BetInput{
+		Now:            c.now,
+		Settings:       c.settings,
+		Plan:           c.plan,
+		Session:        c.session,
+		Week:           c.week,
+		RequestedStake: request.Stake,
+		HouseEdge:      houseEdge,
 	}
-
-	decision := s.deps.Engine.DecideBet(engine.Input{
-		Now: now, Settings: settings, Plan: plan, Session: &session,
-		ChasingSignalsThisWeek: weeklySignals,
-		RequestedStake:         request.Stake, HouseEdge: g.HouseEdge(),
-		ConfirmationSubmitted: request.ConfirmationID != nil,
-		Confirmation:          confirmation,
-		ConfirmationText:      request.ConfirmationText,
-	})
-
-	result := model.BetResult{Decision: decision}
-	if decision.Outcome == model.OutcomeConfirmationRequired {
-		err = createConfirmation(ctx, repos, tenantID, session.ID, &result.Decision, now)
-		if err != nil {
-			return model.BetResult{}, err
-		}
+	if request.ConfirmationID != nil {
+		input.Attempt = &engine.ConfirmationAttempt{Record: c.confirmation, Text: request.ConfirmationText}
 	}
-	if decision.Accepted() {
-		result.Round, err = s.playRound(ctx, repos, roundContext{
-			plan: &plan, session: &session, settings: settings, confirmation: confirmation,
-			request: request, decision: decision, game: g, now: now,
-		})
-		if err != nil {
-			return model.BetResult{}, err
-		}
-	}
-
-	err = persistEffects(ctx, repos, &session, decision, now)
-	if err != nil {
-		return model.BetResult{}, err
-	}
-	result.Balance = plan.Balance
-	result.Session = session
-	return result, nil
+	return input
 }
 
 func submittedConfirmation(ctx context.Context, repos Repositories, tenantID int64, request model.BetRequest) (*model.Confirmation, error) {
@@ -108,10 +143,10 @@ func submittedConfirmation(ctx context.Context, repos Repositories, tenantID int
 	return confirmation, nil
 }
 
-func createConfirmation(ctx context.Context, repos Repositories, tenantID, sessionID int64, decision *model.Decision, now time.Time) error {
+func createConfirmation(ctx context.Context, repos Repositories, session model.Session, decision model.BetDecision, now time.Time) (int64, error) {
 	confirmation := model.Confirmation{
-		TenantID:  tenantID,
-		SessionID: sessionID,
+		TenantID:  session.TenantID,
+		SessionID: session.ID,
 		Stake:     decision.Stake,
 		Kind:      decision.Confirmation.Kind,
 		Phrase:    decision.Confirmation.Phrase,
@@ -120,70 +155,64 @@ func createConfirmation(ctx context.Context, repos Repositories, tenantID, sessi
 	}
 	err := repos.Confirmations.Create(ctx, &confirmation)
 	if err != nil {
-		return fmt.Errorf("create confirmation: %w", err)
+		return 0, fmt.Errorf("create confirmation: %w", err)
 	}
-	decision.Confirmation.ID = confirmation.ID
-	return nil
+	return confirmation.ID, nil
 }
 
-type roundContext struct {
-	plan         *model.Plan
-	session      *model.Session
-	settings     model.RuleSettings
-	confirmation *model.Confirmation
-	request      model.BetRequest
-	decision     model.Decision
-	game         game.Game
-	now          time.Time
-}
-
-func (s *BettingService) playRound(ctx context.Context, repos Repositories, round roundContext) (*model.RoundResult, error) {
-	if round.decision.ConfirmationUsed {
-		round.confirmation.UsedAt = &round.now
-		err := repos.Confirmations.Save(ctx, *round.confirmation)
-		if err != nil {
-			return nil, fmt.Errorf("consume confirmation: %w", err)
-		}
-	}
-
-	played := round.game.Play(round.decision.Stake, round.request.Selection, s.deps.Random)
-	engine.SettleRound(round.plan, round.session, round.settings, round.decision.Stake, played.Payout, round.now)
-
-	err := repos.Plans.Save(ctx, *round.plan)
-	if err != nil {
-		return nil, fmt.Errorf("save plan: %w", err)
-	}
-	err = repos.Bets.Create(ctx, &model.Bet{
-		TenantID:       round.session.TenantID,
-		SessionID:      round.session.ID,
-		Game:           round.game.Name(),
-		Selection:      round.request.Selection,
-		RequestedStake: round.decision.RequestedStake,
-		Stake:          round.decision.Stake,
-		Payout:         played.Payout,
-		Outcome:        played.Outcome,
-		CreatedAt:      round.now,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("record bet: %w", err)
-	}
-	return &model.RoundResult{Outcome: played.Outcome, Payout: played.Payout}, nil
-}
-
-func persistEffects(ctx context.Context, repos Repositories, session *model.Session, decision model.Decision, now time.Time) error {
-	engine.ApplyEffects(session, decision.Effects, now)
-	err := repos.Sessions.Save(ctx, *session)
-	if err != nil {
-		return fmt.Errorf("save session: %w", err)
-	}
-	if decision.Effects.AlertReason == "" {
+func consumeConfirmation(ctx context.Context, repos Repositories, confirmation *model.Confirmation, now time.Time) error {
+	if confirmation == nil {
 		return nil
 	}
-	err = repos.Alerts.Create(ctx, &model.Alert{
-		TenantID: session.TenantID, SessionID: session.ID, Reason: decision.Effects.AlertReason, CreatedAt: now,
-	})
+	used := *confirmation
+	used.UsedAt = &now
+	err := repos.Confirmations.Save(ctx, used)
 	if err != nil {
-		return fmt.Errorf("create alert: %w", err)
+		return fmt.Errorf("consume confirmation: %w", err)
 	}
 	return nil
+}
+
+func newBet(session model.Session, g game.Game, request model.BetRequest, decision model.BetDecision, played game.Result, now time.Time) model.Bet {
+	return model.Bet{
+		TenantID:       session.TenantID,
+		SessionID:      session.ID,
+		Game:           g.Name(),
+		Selection:      request.Selection,
+		RequestedStake: request.Stake,
+		Stake:          decision.Stake,
+		Payout:         played.Payout,
+		Outcome:        played.Outcome,
+		CreatedAt:      now,
+	}
+}
+
+func saveRound(ctx context.Context, repos Repositories, plan model.Plan, bet model.Bet) error {
+	err := repos.Plans.Save(ctx, plan)
+	if err != nil {
+		return fmt.Errorf("save plan: %w", err)
+	}
+	err = repos.Bets.Create(ctx, &bet)
+	if err != nil {
+		return fmt.Errorf("record bet: %w", err)
+	}
+	return nil
+}
+
+func persistEffects(ctx context.Context, repos Repositories, session model.Session, effects model.Effects, now time.Time) (model.Session, error) {
+	updated := engine.ApplyEffects(session, effects, now)
+	err := repos.Sessions.Save(ctx, updated)
+	if err != nil {
+		return model.Session{}, fmt.Errorf("save session: %w", err)
+	}
+	if effects.AlertReason == "" {
+		return updated, nil
+	}
+	err = repos.Alerts.Create(ctx, &model.Alert{
+		TenantID: updated.TenantID, SessionID: updated.ID, Reason: effects.AlertReason, CreatedAt: now,
+	})
+	if err != nil {
+		return model.Session{}, fmt.Errorf("create alert: %w", err)
+	}
+	return updated, nil
 }

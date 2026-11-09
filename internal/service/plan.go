@@ -65,15 +65,15 @@ func loadState(ctx context.Context, repos Repositories, tenantID int64, clock Cl
 	if err != nil {
 		return model.State{}, err
 	}
-	weeklySignals, err := repos.Sessions.SumChasingSignalsSince(ctx, tenantID, plan.WeekStart)
+	week, err := repos.History.WeekActivity(ctx, tenantID, plan.WeekStart, engine.NextWeekStart(plan.WeekStart))
 	if err != nil {
-		return model.State{}, fmt.Errorf("count chasing signals: %w", err)
+		return model.State{}, fmt.Errorf("load week activity: %w", err)
 	}
 	return model.State{
 		Plan:                   plan,
 		ProgressPercent:        plan.ProgressPercent(),
-		FrictionLevel:          engine.FrictionLevel(plan, settings, active, weeklySignals),
-		ChasingSignalsThisWeek: weeklySignals,
+		FrictionLevel:          engine.FrictionLevel(plan, settings, active, week.ChasingSignals),
+		ChasingSignalsThisWeek: week.ChasingSignals,
 		ActiveSession:          active,
 		NextAllocationAt:       engine.NextWeekStart(plan.WeekStart),
 	}, nil
@@ -91,11 +91,11 @@ func currentPlan(ctx context.Context, repos Repositories, tenantID int64, clock 
 
 	rolled := false
 	for !now.Before(engine.NextWeekStart(plan.WeekStart)) {
-		chased, err := repos.Sessions.CountEndedBetween(ctx, tenantID, model.ReasonChasingLimit, plan.WeekStart, engine.NextWeekStart(plan.WeekStart))
+		week, err := repos.History.WeekActivity(ctx, tenantID, plan.WeekStart, engine.NextWeekStart(plan.WeekStart))
 		if err != nil {
 			return model.Plan{}, time.Time{}, fmt.Errorf("evaluate week: %w", err)
 		}
-		engine.AdvanceWeek(&plan, chased == 0)
+		plan = engine.AdvanceWeek(plan, week.ChasingStops == 0)
 		rolled = true
 	}
 	if !rolled {

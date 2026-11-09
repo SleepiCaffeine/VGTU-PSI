@@ -17,9 +17,9 @@ Pasiruošimas: paleista „Docker Desktop“, įvykdyta `go run ./cmd/dev -reset
 
 Taisyklė „ne daugiau kaip 3 sesijos per dieną“:
 
-1. Naujas failas `internal/service/engine/rule_daily_sessions.go` su `Rule` realizacija.
+1. Naujas failas `internal/service/engine/rule_daily_sessions.go` su `SessionRule` realizacija.
 2. Viena eilutė `internal/service/engine/registry.go` sesijos pradžios sąraše.
-3. Naujas laukas `SessionsToday` `engine.Input` ir jo užpildymas `SessionService`, nes reikia naujų duomenų.
+3. Naujas laukas `SessionsToday` `model.WeekActivity` ir jo užpildymas `historyRepository`, nes reikia naujų duomenų.
 
 Esami taisyklių failai nekeičiami.
 

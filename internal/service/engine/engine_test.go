@@ -31,11 +31,18 @@ func openSession() model.Session {
 	return model.Session{ID: 1, StartedAt: now.Add(-time.Minute)}
 }
 
-func decideBet(p model.Plan, s *model.Session, stake int) model.Decision {
-	return engine.Default().DecideBet(engine.Input{
+func decideBet(p model.Plan, s model.Session, stake int) model.BetDecision {
+	return engine.Default().DecideBet(engine.BetInput{
 		Now: now, Settings: settings(), Plan: p, Session: s, RequestedStake: stake, HouseEdge: rouletteEdge,
-		ChasingSignalsThisWeek: s.ChasingSignals,
+		Week: model.WeekActivity{ChasingSignals: s.ChasingSignals},
 	})
+}
+
+func attemptOf(submitted bool, record *model.Confirmation, text string) *engine.ConfirmationAttempt {
+	if !submitted {
+		return nil
+	}
+	return &engine.ConfirmationAttempt{Record: record, Text: text}
 }
 
 func TestDesignScenariosBets(t *testing.T) {
@@ -93,23 +100,23 @@ func TestDesignScenariosBets(t *testing.T) {
 			s := openSession()
 			tt.mutate(&s)
 
-			d := decideBet(p, &s, tt.stake)
+			d := decideBet(p, s, tt.stake)
 
-			if d.Outcome != tt.wantOutcome || d.Reason != tt.wantReason || d.Stake != tt.wantStake {
-				t.Fatalf("decision = %s/%s/%d, want %s/%s/%d", d.Outcome, d.Reason, d.Stake, tt.wantOutcome, tt.wantReason, tt.wantStake)
+			if d.Outcome != tt.wantOutcome || d.Verdict.Reason != tt.wantReason || d.Stake != tt.wantStake {
+				t.Fatalf("decision = %s/%s/%d, want %s/%s/%d", d.Outcome, d.Verdict.Reason, d.Stake, tt.wantOutcome, tt.wantReason, tt.wantStake)
 			}
 			if d.Confirmation != nil {
 				t.Fatalf("unexpected confirmation request: %+v", d.Confirmation)
 			}
-			if (d.Effects.AlertReason != "") != tt.wantNotify {
-				t.Errorf("alert reason = %q, want alert %v", d.Effects.AlertReason, tt.wantNotify)
+			if (d.Verdict.Effects.AlertReason != "") != tt.wantNotify {
+				t.Errorf("alert reason = %q, want alert %v", d.Verdict.Effects.AlertReason, tt.wantNotify)
 			}
 
 			if d.Accepted() {
 				const lostRoundPayout = 0
-				engine.SettleRound(&p, &s, settings(), d.Stake, lostRoundPayout, now)
+				p, s = engine.SettleRound(p, s, settings(), d.Stake, lostRoundPayout, now)
 			}
-			engine.ApplyEffects(&s, d.Effects, now)
+			s = engine.ApplyEffects(s, d.Verdict.Effects, now)
 
 			if p.Balance != tt.wantBalance {
 				t.Errorf("balance = %d, want %d", p.Balance, tt.wantBalance)
@@ -142,9 +149,9 @@ func TestStakeCaps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := openSession()
 			s.NetLoss = tt.netLoss
-			d := decideBet(plan(tt.balance, 1), &s, tt.stake)
-			if d.Outcome != tt.wantOutcome || d.Reason != tt.wantReason || d.Stake != tt.wantStake {
-				t.Errorf("decision = %s/%s/%d, want %s/%s/%d", d.Outcome, d.Reason, d.Stake, tt.wantOutcome, tt.wantReason, tt.wantStake)
+			d := decideBet(plan(tt.balance, 1), s, tt.stake)
+			if d.Outcome != tt.wantOutcome || d.Verdict.Reason != tt.wantReason || d.Stake != tt.wantStake {
+				t.Errorf("decision = %s/%s/%d, want %s/%s/%d", d.Outcome, d.Verdict.Reason, d.Stake, tt.wantOutcome, tt.wantReason, tt.wantStake)
 			}
 		})
 	}
@@ -182,15 +189,12 @@ func TestConfirmationVerification(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := openSession()
-			d := engine.Default().DecideBet(engine.Input{
-				Now: now, Settings: settings(), Plan: plan(500, 9), Session: &s, RequestedStake: 20, HouseEdge: rouletteEdge,
-				ConfirmationSubmitted: tt.submitted, Confirmation: tt.confirmation, ConfirmationText: tt.text,
+			d := engine.Default().DecideBet(engine.BetInput{
+				Now: now, Settings: settings(), Plan: plan(500, 9), Session: s, RequestedStake: 20, HouseEdge: rouletteEdge,
+				Attempt: attemptOf(tt.submitted, tt.confirmation, tt.text),
 			})
-			if d.Outcome != tt.wantOutcome || d.Reason != tt.wantReason {
-				t.Fatalf("decision = %s/%s, want %s/%s", d.Outcome, d.Reason, tt.wantOutcome, tt.wantReason)
-			}
-			if d.ConfirmationUsed != d.Accepted() {
-				t.Errorf("confirmation used = %v for outcome %s", d.ConfirmationUsed, d.Outcome)
+			if d.Outcome != tt.wantOutcome || d.Verdict.Reason != tt.wantReason {
+				t.Fatalf("decision = %s/%s, want %s/%s", d.Outcome, d.Verdict.Reason, tt.wantOutcome, tt.wantReason)
 			}
 		})
 	}
@@ -204,29 +208,29 @@ func TestSessionStartDecisions(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		mutate      func(*engine.Input)
+		mutate      func(*engine.SessionStartInput)
 		wantOutcome model.Outcome
 		wantReason  model.Reason
 		wantNext    *time.Time
 	}{
-		{"allowed", func(*engine.Input) {}, model.OutcomeAccepted, model.ReasonRulesPassed, nil},
-		{"no credits shows next allocation", func(in *engine.Input) { in.Plan.Balance = 0 }, model.OutcomeDenied, model.ReasonNoCredits, &nextMonday},
-		{"open session", func(in *engine.Input) { in.Session = &open }, model.OutcomeDenied, model.ReasonSessionAlreadyActive, nil},
-		{"outside hours", func(in *engine.Input) { in.Settings.AllowedToHour = 1 }, model.OutcomeDenied, model.ReasonOutsideAllowedHours, nil},
-		{"weekly limit", func(in *engine.Input) { in.SessionsThisWeek = 5 }, model.OutcomeDenied, model.ReasonWeeklySessionLimit, nil},
-		{"cooldown", func(in *engine.Input) { in.LastSessionEndedAt = &recentEnd }, model.OutcomeDenied, model.ReasonCooldownActive, nil},
-		{"chasing stop locks the week", func(in *engine.Input) { in.ChasingStopsThisWeek = 1 }, model.OutcomeDenied, model.ReasonChasingLockout, &nextMonday},
-		{"running break blocks a restart", func(in *engine.Input) { in.LatestBreakUntil = &breakEnds }, model.OutcomeDenied, model.ReasonBreakActive, nil},
-		{"finished break does not block", func(in *engine.Input) { in.LatestBreakUntil = &recentEnd }, model.OutcomeAccepted, model.ReasonRulesPassed, nil},
+		{"allowed", func(*engine.SessionStartInput) {}, model.OutcomeAccepted, model.ReasonRulesPassed, nil},
+		{"no credits shows next allocation", func(in *engine.SessionStartInput) { in.Plan.Balance = 0 }, model.OutcomeDenied, model.ReasonNoCredits, &nextMonday},
+		{"open session", func(in *engine.SessionStartInput) { in.OpenSession = &open }, model.OutcomeDenied, model.ReasonSessionAlreadyActive, nil},
+		{"outside hours", func(in *engine.SessionStartInput) { in.Settings.AllowedToHour = 1 }, model.OutcomeDenied, model.ReasonOutsideAllowedHours, nil},
+		{"weekly limit", func(in *engine.SessionStartInput) { in.Week.SessionsStarted = 5 }, model.OutcomeDenied, model.ReasonWeeklySessionLimit, nil},
+		{"cooldown", func(in *engine.SessionStartInput) { in.Week.LastSessionEndedAt = &recentEnd }, model.OutcomeDenied, model.ReasonCooldownActive, nil},
+		{"chasing stop locks the week", func(in *engine.SessionStartInput) { in.Week.ChasingStops = 1 }, model.OutcomeDenied, model.ReasonChasingLockout, &nextMonday},
+		{"running break blocks a restart", func(in *engine.SessionStartInput) { in.Week.LatestBreakUntil = &breakEnds }, model.OutcomeDenied, model.ReasonBreakActive, nil},
+		{"finished break does not block", func(in *engine.SessionStartInput) { in.Week.LatestBreakUntil = &recentEnd }, model.OutcomeAccepted, model.ReasonRulesPassed, nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			in := engine.Input{Now: now, Settings: settings(), Plan: plan(100, 1)}
+			in := engine.SessionStartInput{Now: now, Settings: settings(), Plan: plan(100, 1)}
 			tt.mutate(&in)
 			d := engine.Default().DecideSessionStart(in)
-			if d.Outcome != tt.wantOutcome || d.Reason != tt.wantReason {
-				t.Fatalf("decision = %s/%s, want %s/%s", d.Outcome, d.Reason, tt.wantOutcome, tt.wantReason)
+			if d.Outcome() != tt.wantOutcome || d.Verdict.Reason != tt.wantReason {
+				t.Fatalf("decision = %s/%s, want %s/%s", d.Outcome(), d.Verdict.Reason, tt.wantOutcome, tt.wantReason)
 			}
 			if tt.wantNext != nil && (d.NextAllocationAt == nil || !d.NextAllocationAt.Equal(*tt.wantNext)) {
 				t.Errorf("next allocation = %v, want %v", d.NextAllocationAt, tt.wantNext)
@@ -263,9 +267,9 @@ func TestPipelineOrder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := openSession()
 			tt.mutate(&s)
-			d := decideBet(plan(500, 1), &s, tt.stake)
-			if d.Outcome != model.OutcomeRejected || d.Reason != tt.wantReason {
-				t.Fatalf("decision = %s/%s, want REJECTED/%s", d.Outcome, d.Reason, tt.wantReason)
+			d := decideBet(plan(500, 1), s, tt.stake)
+			if d.Outcome != model.OutcomeRejected || d.Verdict.Reason != tt.wantReason {
+				t.Fatalf("decision = %s/%s, want REJECTED/%s", d.Outcome, d.Verdict.Reason, tt.wantReason)
 			}
 		})
 	}
@@ -288,13 +292,13 @@ func TestChasingSignalsBelowLimit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := openSession()
 			s.BetCount, s.ChasingSignals, s.LastStake, s.LastLost = 1, tt.signals, 20, true
-			d := decideBet(plan(500, 1), &s, tt.stake)
+			d := decideBet(plan(500, 1), s, tt.stake)
 			if d.Outcome != model.OutcomeAccepted {
 				t.Fatalf("outcome = %s, want ACCEPTED", d.Outcome)
 			}
-			if d.Effects.ChasingSignal != tt.wantSignal || (d.Effects.BreakUntil != nil) != tt.wantBreak ||
-				(d.Effects.AlertReason == model.ReasonChasingSignal) != tt.wantSignal {
-				t.Errorf("effects = %+v, want signal %v break %v", d.Effects, tt.wantSignal, tt.wantBreak)
+			if d.Verdict.Effects.ChasingSignal != tt.wantSignal || (d.Verdict.Effects.BreakUntil != nil) != tt.wantBreak ||
+				(d.Verdict.Effects.AlertReason == model.ReasonChasingSignal) != tt.wantSignal {
+				t.Errorf("effects = %+v, want signal %v break %v", d.Verdict.Effects, tt.wantSignal, tt.wantBreak)
 			}
 		})
 	}
@@ -304,13 +308,13 @@ func TestChasingLimitCountsTheWholeWeek(t *testing.T) {
 	s := openSession()
 	s.BetCount, s.LastStake, s.LastLost = 1, 20, true
 
-	d := engine.Default().DecideBet(engine.Input{
-		Now: now, Settings: settings(), Plan: plan(500, 1), Session: &s, RequestedStake: 40, HouseEdge: rouletteEdge,
-		ChasingSignalsThisWeek: 2,
+	d := engine.Default().DecideBet(engine.BetInput{
+		Now: now, Settings: settings(), Plan: plan(500, 1), Session: s, RequestedStake: 40, HouseEdge: rouletteEdge,
+		Week: model.WeekActivity{ChasingSignals: 2},
 	})
 
-	if d.Outcome != model.OutcomeRejected || d.Reason != model.ReasonChasingLimit {
-		t.Fatalf("decision = %s/%s, want REJECTED/CHASING_LIMIT", d.Outcome, d.Reason)
+	if d.Outcome != model.OutcomeRejected || d.Verdict.Reason != model.ReasonChasingLimit {
+		t.Fatalf("decision = %s/%s, want REJECTED/CHASING_LIMIT", d.Outcome, d.Verdict.Reason)
 	}
 }
 
@@ -318,13 +322,13 @@ func TestConfirmationStopDropsChasingEffects(t *testing.T) {
 	s := openSession()
 	s.LastStake, s.LastLost = 20, true
 
-	d := decideBet(plan(500, 9), &s, 40)
+	d := decideBet(plan(500, 9), s, 40)
 
 	if d.Outcome != model.OutcomeConfirmationRequired {
 		t.Fatalf("outcome = %s, want CONFIRMATION_REQUIRED", d.Outcome)
 	}
-	if d.Effects != (model.Effects{}) {
-		t.Errorf("effects kept on confirmation stop: %+v", d.Effects)
+	if d.Verdict.Effects != (model.Effects{}) {
+		t.Errorf("effects kept on confirmation stop: %+v", d.Verdict.Effects)
 	}
 }
 
@@ -351,7 +355,7 @@ func TestFrictionRequirements(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := openSession()
 			s.BetCount = tt.betCount
-			d := decideBet(plan(500, tt.week), &s, 20)
+			d := decideBet(plan(500, tt.week), s, 20)
 			if tt.wantKind == "" {
 				if d.Confirmation != nil {
 					t.Fatalf("unexpected confirmation %+v", d.Confirmation)
@@ -394,7 +398,7 @@ func TestPlanReduction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := plan(0, 1)
 			p.Allocation = tt.allocation
-			engine.AdvanceWeek(&p, tt.clean)
+			p = engine.AdvanceWeek(p, tt.clean)
 			if p.Allocation != tt.wantAllocation || p.Balance != tt.wantAllocation {
 				t.Errorf("allocation/balance = %d/%d, want %d", p.Allocation, p.Balance, tt.wantAllocation)
 			}

@@ -71,6 +71,7 @@ func newRepositories(tx *gorm.DB) service.Repositories {
 		Plans:         planRepository{db: tx},
 		Settings:      settingsRepository{db: tx},
 		Sessions:      sessionRepository{db: tx},
+		History:       historyRepository{db: tx},
 		Bets:          betRepository{db: tx},
 		Confirmations: confirmationRepository{db: tx},
 		Alerts:        alertRepository{db: tx},

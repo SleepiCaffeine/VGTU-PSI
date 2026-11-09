@@ -6,22 +6,20 @@ type chasingLockoutRule struct{}
 
 func (chasingLockoutRule) Name() string { return "chasing_lockout" }
 
-func (chasingLockoutRule) Evaluate(in Input, d *model.Decision) bool {
-	if in.ChasingStopsThisWeek == 0 {
-		return false
+func (chasingLockoutRule) Evaluate(in SessionStartInput) model.SessionDecision {
+	if in.Week.ChasingStops == 0 {
+		return startAllowed()
 	}
-	next := NextWeekStart(in.Plan.WeekStart)
-	d.NextAllocationAt = &next
-	return deny(d, model.ReasonChasingLockout)
+	return deniedUntilNextAllocation(model.ReasonChasingLockout, in.Plan)
 }
 
 type breakActiveRule struct{}
 
 func (breakActiveRule) Name() string { return "break_active" }
 
-func (breakActiveRule) Evaluate(in Input, d *model.Decision) bool {
-	if in.LatestBreakUntil == nil || !in.Now.Before(*in.LatestBreakUntil) {
-		return false
+func (breakActiveRule) Evaluate(in SessionStartInput) model.SessionDecision {
+	if in.Week.LatestBreakUntil == nil || !in.Now.Before(*in.Week.LatestBreakUntil) {
+		return startAllowed()
 	}
-	return deny(d, model.ReasonBreakActive)
+	return denied(model.ReasonBreakActive)
 }

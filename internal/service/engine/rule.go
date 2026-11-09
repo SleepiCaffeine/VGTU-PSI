@@ -6,27 +6,58 @@ import (
 	"github.com/SleepiCaffeine/VGTU-PSI/internal/model"
 )
 
-// Input is everything a rule may consider. Rules perform no I/O.
-type Input struct {
-	Now                    time.Time
-	Settings               model.RuleSettings
-	Plan                   model.Plan
-	Session                *model.Session
-	SessionsThisWeek       int
-	LastSessionEndedAt     *time.Time
-	ChasingStopsThisWeek   int
-	LatestBreakUntil       *time.Time
-	ChasingSignalsThisWeek int
-
-	RequestedStake        int
-	HouseEdge             float64
-	ConfirmationSubmitted bool
-	Confirmation          *model.Confirmation
-	ConfirmationText      string
+// SessionStartInput is everything a session-start rule may consider.
+type SessionStartInput struct {
+	Now         time.Time
+	Settings    model.RuleSettings
+	Plan        model.Plan
+	OpenSession *model.Session
+	Week        model.WeekActivity
 }
 
-// Rule is one step of a decision pipeline. It returns true to stop the pipeline.
-type Rule interface {
+// ConfirmationAttempt is an acknowledgement the player submitted with a bet.
+// Record is nil when the submitted ID matches nothing in the tenant.
+type ConfirmationAttempt struct {
+	Record *model.Confirmation
+	Text   string
+}
+
+// BetInput is everything a bet decision may consider. Attempt is nil when none was submitted.
+type BetInput struct {
+	Now            time.Time
+	Settings       model.RuleSettings
+	Plan           model.Plan
+	Session        model.Session
+	Week           model.WeekActivity
+	RequestedStake int
+	HouseEdge      float64
+	Attempt        *ConfirmationAttempt
+}
+
+// SessionRule is one step of the session-start pipeline.
+type SessionRule interface {
 	Name() string
-	Evaluate(in Input, d *model.Decision) (stop bool)
+	Evaluate(in SessionStartInput) model.SessionDecision
+}
+
+// BetRule is a gate of the bet pipeline. A verdict that is not allowed stops the bet.
+type BetRule interface {
+	Name() string
+	Evaluate(in BetInput) model.Verdict
+}
+
+func allow() model.Verdict {
+	return model.Verdict{Allowed: true, Reason: model.ReasonRulesPassed}
+}
+
+func allowWith(effects model.Effects) model.Verdict {
+	return model.Verdict{Allowed: true, Reason: model.ReasonRulesPassed, Effects: effects}
+}
+
+func block(reason model.Reason) model.Verdict {
+	return model.Verdict{Reason: reason}
+}
+
+func blockWith(reason model.Reason, effects model.Effects) model.Verdict {
+	return model.Verdict{Reason: reason, Effects: effects}
 }

@@ -6,8 +6,8 @@ import (
 	"github.com/SleepiCaffeine/VGTU-PSI/internal/model"
 )
 
-// ApplyEffects records a decision's side effects on the session.
-func ApplyEffects(s *model.Session, effects model.Effects, now time.Time) {
+// ApplyEffects returns the session with a decision's side effects recorded.
+func ApplyEffects(s model.Session, effects model.Effects, now time.Time) model.Session {
 	if effects.ChasingSignal {
 		s.ChasingSignals++
 	}
@@ -21,18 +21,22 @@ func ApplyEffects(s *model.Session, effects model.Effects, now time.Time) {
 	if effects.EndReason != "" {
 		s.End(effects.EndReason, now)
 	}
+	return s
 }
 
-// SettleRound moves points for a finished round and ends the session at the stop-loss.
-func SettleRound(plan *model.Plan, s *model.Session, settings model.RuleSettings, stake, payout int, now time.Time) {
+// SettleRound returns the plan and session after a finished round, ending the session at the stop-loss.
+func SettleRound(
+	plan model.Plan, s model.Session, settings model.RuleSettings, stake, payout int, now time.Time,
+) (model.Plan, model.Session) {
 	plan.Balance += payout - stake
 	s.NetLoss += stake - payout
 	s.BetCount++
 	s.LastStake = stake
 	s.LastLost = payout < stake
-	s.RapidStreak = nextRapidStreak(*s, settings, now)
+	s.RapidStreak = nextRapidStreak(s, settings, now)
 	s.LastBetAt = &now
 	if s.NetLoss >= settings.StopLoss {
 		s.End(model.ReasonStopLossReached, now)
 	}
+	return plan, s
 }

@@ -52,11 +52,9 @@ type ConfirmationRequest struct {
 // Decision defines model for Decision.
 type Decision struct {
 	Confirmation     *ConfirmationRequest `json:"confirmation,omitempty"`
-	FrictionLevel    int                  `json:"frictionLevel"`
 	NextAllocationAt *time.Time           `json:"nextAllocationAt,omitempty"`
 	Outcome          string               `json:"outcome"`
 	Reason           string               `json:"reason"`
-	RequestedStake   int                  `json:"requestedStake"`
 	Stake            int                  `json:"stake"`
 }
 

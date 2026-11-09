@@ -38,6 +38,7 @@ func (m *memory) Do(ctx context.Context, fn func(context.Context, service.Reposi
 		Plans:         memoryPlans{m},
 		Settings:      memorySettings{m},
 		Sessions:      memorySessions{m},
+		History:       memoryHistory{m},
 		Bets:          memoryBets{m},
 		Confirmations: memoryConfirmations{m},
 		Alerts:        memoryAlerts{m},
@@ -95,55 +96,30 @@ func (r memorySessions) Save(_ context.Context, session model.Session) error {
 	return nil
 }
 
-func (r memorySessions) CountStartedSince(_ context.Context, tenantID int64, since time.Time) (int, error) {
-	count := 0
-	for _, session := range r.m.sessions {
-		if session.TenantID == tenantID && !session.StartedAt.Before(since) {
-			count++
-		}
-	}
-	return count, nil
-}
-
-func (r memorySessions) LastEndedAt(context.Context, int64) (*time.Time, error) {
-	return nil, nil
-}
-
-func (r memorySessions) CountEndedBetween(_ context.Context, tenantID int64, reason model.Reason, from, to time.Time) (int, error) {
-	count := 0
-	for _, session := range r.m.sessions {
-		if session.TenantID == tenantID && session.EndReason == reason && !session.EndedAt.Before(from) && session.EndedAt.Before(to) {
-			count++
-		}
-	}
-	return count, nil
-}
-
 func (r memorySessions) ShiftBack(context.Context, int64, time.Duration) error {
 	return nil
 }
 
-func (r memorySessions) SumChasingSignalsSince(_ context.Context, tenantID int64, since time.Time) (int, error) {
-	total := 0
-	for _, session := range r.m.sessions {
-		if session.TenantID == tenantID && !session.StartedAt.Before(since) {
-			total += session.ChasingSignals
-		}
-	}
-	return total, nil
-}
+type memoryHistory struct{ m *memory }
 
-func (r memorySessions) LatestBreakUntil(_ context.Context, tenantID int64) (*time.Time, error) {
-	var latest *time.Time
+func (r memoryHistory) WeekActivity(_ context.Context, tenantID int64, from, to time.Time) (model.WeekActivity, error) {
+	var activity model.WeekActivity
 	for _, session := range r.m.sessions {
-		if session.TenantID != tenantID || session.BreakUntil == nil {
+		if session.TenantID != tenantID {
 			continue
 		}
-		if latest == nil || session.BreakUntil.After(*latest) {
-			latest = session.BreakUntil
+		if !session.StartedAt.Before(from) && session.StartedAt.Before(to) {
+			activity.SessionsStarted++
+			activity.ChasingSignals += session.ChasingSignals
+		}
+		if session.EndReason == model.ReasonChasingLimit && !session.EndedAt.Before(from) && session.EndedAt.Before(to) {
+			activity.ChasingStops++
+		}
+		if session.BreakUntil != nil && (activity.LatestBreakUntil == nil || session.BreakUntil.After(*activity.LatestBreakUntil)) {
+			activity.LatestBreakUntil = session.BreakUntil
 		}
 	}
-	return latest, nil
+	return activity, nil
 }
 
 type memoryBets struct{ m *memory }

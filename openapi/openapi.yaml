@@ -236,17 +236,13 @@ components:
           type: integer
     Decision:
       type: object
-      required: [outcome, reason, requestedStake, stake, frictionLevel]
+      required: [outcome, reason, stake]
       properties:
         outcome:
           type: string
         reason:
           type: string
-        requestedStake:
-          type: integer
         stake:
-          type: integer
-        frictionLevel:
           type: integer
         confirmation:
           $ref: "#/components/schemas/ConfirmationRequest"

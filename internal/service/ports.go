@@ -36,12 +36,12 @@ type SessionRepository interface {
 	FindOpen(ctx context.Context, tenantID int64) (*model.Session, error)
 	Create(ctx context.Context, session *model.Session) error
 	Save(ctx context.Context, session model.Session) error
-	CountStartedSince(ctx context.Context, tenantID int64, since time.Time) (int, error)
-	LastEndedAt(ctx context.Context, tenantID int64) (*time.Time, error)
-	CountEndedBetween(ctx context.Context, tenantID int64, reason model.Reason, from, to time.Time) (int, error)
 	ShiftBack(ctx context.Context, tenantID int64, by time.Duration) error
-	SumChasingSignalsSince(ctx context.Context, tenantID int64, since time.Time) (int, error)
-	LatestBreakUntil(ctx context.Context, tenantID int64) (*time.Time, error)
+}
+
+// SessionHistory answers questions about a tenant's past sessions.
+type SessionHistory interface {
+	WeekActivity(ctx context.Context, tenantID int64, from, to time.Time) (model.WeekActivity, error)
 }
 
 type BetRepository interface {
@@ -65,6 +65,7 @@ type Repositories struct {
 	Plans         PlanRepository
 	Settings      SettingsRepository
 	Sessions      SessionRepository
+	History       SessionHistory
 	Bets          BetRepository
 	Confirmations ConfirmationRepository
 	Alerts        AlertRepository

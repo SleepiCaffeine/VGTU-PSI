@@ -54,11 +54,11 @@ func TestBetStatusMapping(t *testing.T) {
 		err        error
 		wantStatus int
 	}{
-		{"accepted", model.BetResult{Decision: model.Decision{Outcome: model.OutcomeAccepted}}, nil, http.StatusOK},
-		{"capped", model.BetResult{Decision: model.Decision{Outcome: model.OutcomeAcceptedCapped}}, nil, http.StatusOK},
-		{"rejected", model.BetResult{Decision: model.Decision{Outcome: model.OutcomeRejected}}, nil, http.StatusConflict},
-		{"confirmation required", model.BetResult{Decision: model.Decision{Outcome: model.OutcomeConfirmationRequired}}, nil, http.StatusConflict},
-		{"confirmation failed", model.BetResult{Decision: model.Decision{Outcome: model.OutcomeConfirmationFailed}}, nil, http.StatusConflict},
+		{"accepted", model.BetResult{Decision: model.BetDecision{Outcome: model.OutcomeAccepted, Verdict: model.Verdict{Allowed: true}}}, nil, http.StatusOK},
+		{"capped", model.BetResult{Decision: model.BetDecision{Outcome: model.OutcomeAcceptedCapped, Verdict: model.Verdict{Allowed: true}}}, nil, http.StatusOK},
+		{"rejected", model.BetResult{Decision: model.BetDecision{Outcome: model.OutcomeRejected}}, nil, http.StatusConflict},
+		{"confirmation required", model.BetResult{Decision: model.BetDecision{Outcome: model.OutcomeConfirmationRequired}}, nil, http.StatusConflict},
+		{"confirmation failed", model.BetResult{Decision: model.BetDecision{Outcome: model.OutcomeConfirmationFailed}}, nil, http.StatusConflict},
 		{"missing session", model.BetResult{}, fmt.Errorf("load: %w", service.ErrNotFound), http.StatusNotFound},
 		{"unknown game", model.BetResult{}, game.ErrUnknownGame, http.StatusBadRequest},
 		{"invalid selection", model.BetResult{}, game.ErrInvalidSelection, http.StatusBadRequest},

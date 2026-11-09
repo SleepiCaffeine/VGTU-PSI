@@ -27,12 +27,13 @@ func NextWeekStart(weekStart time.Time) time.Time {
 	return weekStart.AddDate(0, 0, daysPerWeek)
 }
 
-// AdvanceWeek starts the next week; unused points do not carry over.
-func AdvanceWeek(plan *model.Plan, clean bool) {
+// AdvanceWeek returns the plan for the next week; unused points do not carry over.
+func AdvanceWeek(plan model.Plan, clean bool) model.Plan {
 	if clean {
 		plan.Allocation = ReduceAllocation(plan.Allocation)
 	}
 	plan.Balance = plan.Allocation
 	plan.WeekNumber++
 	plan.WeekStart = NextWeekStart(plan.WeekStart)
+	return plan
 }
