@@ -23,7 +23,7 @@ Testai: `internal/service/engine/engine_test.go`.
 | Žaidimai | `internal/service/game` | Išmokos su fiksuotu rezultatu, tikslus namų pranašumas |
 | Paslaugos | `internal/service` | Atminties saugykla: vienkartinis patvirtinimas, savaitės keitimas, poveikio išsaugojimas |
 | API | `internal/api/router_test.go` | Būsenų kodai, kliento konteksto tikrinimas, klaidų neatskleidimas |
-| Integraciniai | `internal/api/isolation_integration_test.go` | Tikras MySQL: klientų izoliavimas, statymo išsaugojimas, lygiagretūs statymai |
+| Integraciniai | `internal/api/*_integration_test.go` | Tikras MySQL: klientų izoliavimas, statymo išsaugojimas, lygiagretūs statymai, 100 eilėje laukiančių statymų sustabdymas |
 
 ## Klientų izoliavimas
 

@@ -15,7 +15,9 @@ flowchart TD
     R1 -->|atmesta| STOP["REJECTED + priežastis"]
     R1 --> R2["Privaloma pertrauka"]
     R2 -->|atmesta| STOP
-    R2 --> R3["Vijimasis"]
+    R2 --> R2B["Per greiti statymai"]
+    R2B -->|atmesta| STOP
+    R2B --> R3["Vijimasis"]
     R3 -->|trečias signalas| STOP
     R3 --> R4["Statymo ribos"]
     R4 -->|nieko neliko| STOP

@@ -60,16 +60,17 @@ Plačiau: [docs/testing-plan.md](docs/testing-plan.md).
 | Klientas | Būsena | Skirta parodyti |
 | --- | --- | --- |
 | Pora A | 1 plano savaitė, skyrimas ir balansas 500, didžiausias statymas 50, nuostolio riba 200 | Įprastas statymas, plano mažinimas |
-| Pora B | 9 plano savaitė, skyrimas 290, balansas 250, atvira sesija su 2 vijimosi signalais, paskutinis statymas 20 pralaimėtas | Vijimosi atmetimas, aukščiausias trinties lygis |
+| Pora B | 9 plano savaitė, skyrimas 290, balansas 250, atvira sesija su 2 vijimosi signalais ir 2 įspėjimais, paskutinis statymas 20 pralaimėtas | Vijimosi atmetimas ir užrakinimas iki pirmadienio |
+| Pora C | 9 plano savaitė, skyrimas 290, balansas 250, be sesijų | Aukščiausias trinties lygis |
 
 ## Demonstravimo žingsniai
 
 1. Paleiskite `go run ./cmd/dev -reset` ir atidarykite <http://localhost:8080>.
 2. **Pagrindinis scenarijus.** Pora A, „Pradėti sesiją“, statymas 20, pasirinkimas `red`, „Statyti“. Rezultatas `ACCEPTED`, balansas pasikeičia pagal raundą.
 3. **Plano mažinimas.** „Baigti sesiją“, tada „Demonstracija: pereiti į kitą savaitę“. Skyrimas 420, pažanga 16 %. Tą patį matote prižiūrėtojo veiksenoje.
-4. **Konfliktas.** Pora B, statymas 40, pasirinkimas `red`, „Statyti“. Rezultatas `REJECTED`, `CHASING_LIMIT`, sesija baigta. Prižiūrėtojo veiksenoje matomas įspėjimas.
-5. **Klaida.** Pora B, nauja sesija, statymas 20. Prašoma įvesti sakinį. Įveskite neteisingą: `CONFIRMATION_FAILED`, balansas nepakitęs. Įveskite teisingą: statymas priimamas.
-6. **Klientų atskyrimas.** Pirmiau Poros A kontekste skaitomi Poros B duomenys. Tenant ID sužinomi iš `GET /api/tenants`, toliau naudojami 1 ir 2:
+4. **Konfliktas.** Pora B, statymas 40, pasirinkimas `red`, „Statyti“. Rezultatas `REJECTED`, `CHASING_LIMIT`, sesija baigta. Prižiūrėtojo veiksenoje matomas įspėjimas. Bandant pradėti naują sesiją: `DENIED`, `CHASING_LOCKOUT`, rodoma kito skyrimo data.
+5. **Klaida.** Pora C, nauja sesija, statymas 20. Prašoma įvesti sakinį. Įveskite neteisingą: `CONFIRMATION_FAILED`, balansas nepakitęs. Įveskite teisingą: statymas priimamas.
+6. **Klientų atskyrimas.** Pirmiau Poros A kontekste skaitomi Poros B duomenys. Tenant ID sužinomi iš `GET /api/tenants`, Pora A yra 1, Pora B yra 2:
 
    ```
    curl -i -H "X-Tenant-ID: 1" http://localhost:8080/api/tenants/2/state
