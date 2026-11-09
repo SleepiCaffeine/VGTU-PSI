@@ -1,0 +1,29 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0 auto;
+  max-width: 720px;
+  padding: 16px;
+  line-height: 1.4;
+}
+
+section {
+  border: 1px solid #bbb;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin-top: 0;
+}
+
+label,
+button,
+select,
+input {
+  margin-right: 8px;
+}
+
+.error {
+  color: #b00020;
+}
