@@ -1,0 +1,309 @@
+openapi: 3.0.3
+info:
+  title: Nuolydis API
+  version: 0.2.0
+paths:
+  /tenants:
+    get:
+      operationId: listTenants
+      responses:
+        "200":
+          description: Tenants available in this prototype
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tenant"
+  /tenants/{tenantId}/state:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    get:
+      operationId: getState
+      responses:
+        "200":
+          description: Progress shared by both pair members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/State"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /tenants/{tenantId}/sessions:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    post:
+      operationId: startSession
+      responses:
+        "201":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStartResult"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Session denied by the rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStartResult"
+  /tenants/{tenantId}/sessions/{sessionId}/end:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      operationId: endSession
+      responses:
+        "200":
+          description: Session ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /tenants/{tenantId}/sessions/{sessionId}/bets:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      operationId: placeBet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BetRequest"
+      responses:
+        "200":
+          description: Bet accepted and resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BetResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Bet rejected or awaiting confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BetResult"
+  /tenants/{tenantId}/alerts:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    get:
+      operationId: listAlerts
+      responses:
+        "200":
+          description: Supervisor alerts, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+        "403":
+          $ref: "#/components/responses/Error"
+  /tenants/{tenantId}/demo/advance-week:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    post:
+      operationId: advanceWeek
+      responses:
+        "200":
+          description: State after the simulated week change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/State"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+  responses:
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    Tenant:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    Session:
+      type: object
+      required: [id, startedAt, netLoss, betCount, chasingSignals]
+      properties:
+        id:
+          type: integer
+          format: int64
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        endReason:
+          type: string
+        netLoss:
+          type: integer
+        betCount:
+          type: integer
+        chasingSignals:
+          type: integer
+        breakUntil:
+          type: string
+          format: date-time
+    State:
+      type: object
+      required: [initialAllocation, allocation, balance, weekNumber, progressPercent, frictionLevel, nextAllocationAt]
+      properties:
+        initialAllocation:
+          type: integer
+        allocation:
+          type: integer
+        balance:
+          type: integer
+        weekNumber:
+          type: integer
+        progressPercent:
+          type: integer
+        frictionLevel:
+          type: integer
+        nextAllocationAt:
+          type: string
+          format: date-time
+        activeSession:
+          $ref: "#/components/schemas/Session"
+    ConfirmationRequest:
+      type: object
+      required: [id, kind, phrase, waitSeconds]
+      properties:
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        phrase:
+          type: string
+        waitSeconds:
+          type: integer
+    Decision:
+      type: object
+      required: [outcome, reason, requestedStake, stake, frictionLevel]
+      properties:
+        outcome:
+          type: string
+        reason:
+          type: string
+        requestedStake:
+          type: integer
+        stake:
+          type: integer
+        frictionLevel:
+          type: integer
+        confirmation:
+          $ref: "#/components/schemas/ConfirmationRequest"
+        nextAllocationAt:
+          type: string
+          format: date-time
+    SessionStartResult:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          $ref: "#/components/schemas/Decision"
+        session:
+          $ref: "#/components/schemas/Session"
+    BetRequest:
+      type: object
+      required: [game, selection, stake]
+      properties:
+        game:
+          type: string
+        selection:
+          type: string
+        stake:
+          type: integer
+        confirmationId:
+          type: integer
+          format: int64
+        confirmationText:
+          type: string
+    Round:
+      type: object
+      required: [outcome, payout]
+      properties:
+        outcome:
+          type: string
+        payout:
+          type: integer
+    BetResult:
+      type: object
+      required: [decision, balance, session]
+      properties:
+        decision:
+          $ref: "#/components/schemas/Decision"
+        round:
+          $ref: "#/components/schemas/Round"
+        balance:
+          type: integer
+        session:
+          $ref: "#/components/schemas/Session"
+    Alert:
+      type: object
+      required: [id, sessionId, reason, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        sessionId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
