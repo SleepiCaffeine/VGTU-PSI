@@ -19,65 +19,36 @@ func LossPhrase(stake int, houseEdge float64) string {
 	return fmt.Sprintf("Šis statymas yra nuostolingas: vidutiniškai prarasiu %s taško.", loss)
 }
 
-type frictionRule struct{}
-
-func (frictionRule) Name() string { return "friction" }
-
-func (frictionRule) Evaluate(in Input, d *model.Decision) bool {
-	request := requiredConfirmation(in, d)
-	if request == nil {
-		return false
-	}
-	if !in.ConfirmationSubmitted {
-		d.Confirmation = request
-		return stopForConfirmation(d, model.OutcomeConfirmationRequired, model.ReasonConfirmationNeeded)
-	}
-	failure := confirmationFailure(in, d.Stake, request)
-	if failure != "" {
-		return stopForConfirmation(d, model.OutcomeConfirmationFailed, failure)
-	}
-	d.ConfirmationUsed = true
-	return false
-}
-
-func requiredConfirmation(in Input, d *model.Decision) *model.ConfirmationRequest {
+func requiredConfirmation(in BetInput, level, stake int) *model.ConfirmationRequest {
 	regularly := in.Session.BetCount%in.Settings.ConfirmEveryBets == 0
 	click := &model.ConfirmationRequest{Kind: model.ConfirmationClick, Phrase: ClickPhrase, WaitSeconds: minConfirmationWaitSeconds}
-	text := &model.ConfirmationRequest{Kind: model.ConfirmationText, Phrase: LossPhrase(d.Stake, in.HouseEdge), WaitSeconds: minConfirmationWaitSeconds}
+	text := &model.ConfirmationRequest{Kind: model.ConfirmationText, Phrase: LossPhrase(stake, in.HouseEdge), WaitSeconds: minConfirmationWaitSeconds}
 
 	switch {
-	case d.FrictionLevel >= 4:
+	case level >= 4:
 		return text
-	case d.FrictionLevel == 3 && regularly:
+	case level == 3 && regularly:
 		text.WaitSeconds = max(in.Settings.FrictionWaitSeconds, minConfirmationWaitSeconds)
 		return text
-	case d.FrictionLevel == 2 && regularly:
+	case level == 2 && regularly:
 		return click
-	case d.FrictionLevel == 1 && in.Session.BetCount == 0:
+	case level == 1 && in.Session.BetCount == 0:
 		return click
 	default:
 		return nil
 	}
 }
 
-func confirmationFailure(in Input, stake int, request *model.ConfirmationRequest) model.Reason {
-	c := in.Confirmation
+func confirmationFailure(attempt ConfirmationAttempt, in BetInput, stake int, request *model.ConfirmationRequest) model.Reason {
+	c := attempt.Record
 	if c == nil || c.UsedAt != nil || c.SessionID != in.Session.ID || c.Stake != stake || c.Kind != request.Kind {
 		return model.ReasonConfirmationInvalid
 	}
 	if in.Now.Before(c.NotBefore) {
 		return model.ReasonConfirmationTooEarly
 	}
-	if c.Kind == model.ConfirmationText && strings.TrimSpace(in.ConfirmationText) != c.Phrase {
+	if c.Kind == model.ConfirmationText && strings.TrimSpace(attempt.Text) != c.Phrase {
 		return model.ReasonConfirmationMismatch
 	}
 	return ""
-}
-
-// stopForConfirmation discards effects so that a retried bet cannot count them twice.
-func stopForConfirmation(d *model.Decision, outcome model.Outcome, reason model.Reason) bool {
-	d.Outcome = outcome
-	d.Reason = reason
-	d.Effects = model.Effects{}
-	return true
 }

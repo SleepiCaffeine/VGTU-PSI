@@ -20,7 +20,7 @@ type RoundResult struct {
 
 // BetResult is a decision together with the state it left behind.
 type BetResult struct {
-	Decision Decision
+	Decision BetDecision
 	Round    *RoundResult
 	Balance  int
 	Session  Session
@@ -28,6 +28,6 @@ type BetResult struct {
 
 // SessionStartResult carries a decision and, when allowed, the new session.
 type SessionStartResult struct {
-	Decision Decision
+	Decision SessionDecision
 	Session  *Session
 }

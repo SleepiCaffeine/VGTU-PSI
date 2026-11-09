@@ -39,27 +39,13 @@ func (s *SessionService) start(ctx context.Context, repos Repositories, tenantID
 	if err != nil {
 		return model.SessionStartResult{}, err
 	}
-	started, err := repos.Sessions.CountStartedSince(ctx, tenantID, plan.WeekStart)
+	week, err := repos.History.WeekActivity(ctx, tenantID, plan.WeekStart, engine.NextWeekStart(plan.WeekStart))
 	if err != nil {
-		return model.SessionStartResult{}, fmt.Errorf("count sessions: %w", err)
-	}
-	lastEnded, err := repos.Sessions.LastEndedAt(ctx, tenantID)
-	if err != nil {
-		return model.SessionStartResult{}, fmt.Errorf("load last session: %w", err)
+		return model.SessionStartResult{}, fmt.Errorf("load week activity: %w", err)
 	}
 
-	stops, err := repos.Sessions.CountEndedBetween(ctx, tenantID, model.ReasonChasingLimit, plan.WeekStart, engine.NextWeekStart(plan.WeekStart))
-	if err != nil {
-		return model.SessionStartResult{}, fmt.Errorf("count chasing stops: %w", err)
-	}
-	latestBreak, err := repos.Sessions.LatestBreakUntil(ctx, tenantID)
-	if err != nil {
-		return model.SessionStartResult{}, fmt.Errorf("load latest break: %w", err)
-	}
-
-	decision := s.deps.Engine.DecideSessionStart(engine.Input{
-		Now: now, Settings: settings, Plan: plan, Session: open, SessionsThisWeek: started, LastSessionEndedAt: lastEnded,
-		ChasingStopsThisWeek: stops, LatestBreakUntil: latestBreak,
+	decision := s.deps.Engine.DecideSessionStart(engine.SessionStartInput{
+		Now: now, Settings: settings, Plan: plan, OpenSession: open, Week: week,
 	})
 	if !decision.Accepted() {
 		return model.SessionStartResult{Decision: decision}, nil

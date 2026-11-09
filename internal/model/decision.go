@@ -43,15 +43,7 @@ const (
 	ReasonConfirmationMismatch Reason = "CONFIRMATION_TEXT_MISMATCH"
 )
 
-// ConfirmationRequest tells the player what must be acknowledged before the bet.
-type ConfirmationRequest struct {
-	ID          int64
-	Kind        ConfirmationKind
-	Phrase      string
-	WaitSeconds int
-}
-
-// Effects are the state changes a decision causes besides moving points.
+// Effects are the state changes a verdict causes besides moving points.
 type Effects struct {
 	ChasingSignal bool
 	RapidFlag     bool
@@ -60,19 +52,71 @@ type Effects struct {
 	AlertReason   Reason
 }
 
-// Decision is the rule engine's answer to a session start or a bet.
-type Decision struct {
-	Outcome          Outcome
-	Reason           Reason
-	RequestedStake   int
-	Stake            int
-	FrictionLevel    int
-	Confirmation     *ConfirmationRequest
-	NextAllocationAt *time.Time
-	ConfirmationUsed bool
-	Effects          Effects
+// Merge combines two sets of effects; values set in other take precedence.
+func (e Effects) Merge(other Effects) Effects {
+	merged := e
+	merged.ChasingSignal = e.ChasingSignal || other.ChasingSignal
+	merged.RapidFlag = e.RapidFlag || other.RapidFlag
+	if other.BreakUntil != nil {
+		merged.BreakUntil = other.BreakUntil
+	}
+	if other.EndReason != "" {
+		merged.EndReason = other.EndReason
+	}
+	if other.AlertReason != "" {
+		merged.AlertReason = other.AlertReason
+	}
+	return merged
 }
 
-func (d Decision) Accepted() bool {
-	return d.Outcome == OutcomeAccepted || d.Outcome == OutcomeAcceptedCapped
+// Verdict says whether something may proceed, why, and what follows from it.
+type Verdict struct {
+	Allowed bool
+	Reason  Reason
+	Effects Effects
+}
+
+// ConfirmationRequest tells the player what must be acknowledged before the bet.
+type ConfirmationRequest struct {
+	ID          int64
+	Kind        ConfirmationKind
+	Phrase      string
+	WaitSeconds int
+}
+
+// BetDecision is the engine's answer to a bet.
+type BetDecision struct {
+	Outcome      Outcome
+	Verdict      Verdict
+	Stake        int
+	Confirmation *ConfirmationRequest
+}
+
+func (d BetDecision) Accepted() bool {
+	return d.Verdict.Allowed
+}
+
+// WithConfirmationID returns a copy whose confirmation request carries the stored ID.
+func (d BetDecision) WithConfirmationID(id int64) BetDecision {
+	request := *d.Confirmation
+	request.ID = id
+	d.Confirmation = &request
+	return d
+}
+
+// SessionDecision is the engine's answer to starting a session.
+type SessionDecision struct {
+	Verdict          Verdict
+	NextAllocationAt *time.Time
+}
+
+func (d SessionDecision) Accepted() bool {
+	return d.Verdict.Allowed
+}
+
+func (d SessionDecision) Outcome() Outcome {
+	if d.Accepted() {
+		return OutcomeAccepted
+	}
+	return OutcomeDenied
 }

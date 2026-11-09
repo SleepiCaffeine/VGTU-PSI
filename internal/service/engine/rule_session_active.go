@@ -16,13 +16,12 @@ type sessionActiveRule struct{}
 
 func (sessionActiveRule) Name() string { return "session_active" }
 
-func (sessionActiveRule) Evaluate(in Input, d *model.Decision) bool {
-	if in.Session == nil || in.Session.Ended() {
-		return reject(d, model.ReasonSessionEnded)
+func (sessionActiveRule) Evaluate(in BetInput) model.Verdict {
+	if in.Session.Ended() {
+		return block(model.ReasonSessionEnded)
 	}
-	if !SessionExpired(*in.Session, in.Settings, in.Now) {
-		return false
+	if !SessionExpired(in.Session, in.Settings, in.Now) {
+		return allow()
 	}
-	d.Effects.EndReason = model.ReasonSessionTimeLimit
-	return reject(d, model.ReasonSessionTimeLimit)
+	return blockWith(model.ReasonSessionTimeLimit, model.Effects{EndReason: model.ReasonSessionTimeLimit})
 }

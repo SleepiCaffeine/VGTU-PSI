@@ -179,9 +179,7 @@ export interface components {
         Decision: {
             outcome: string;
             reason: string;
-            requestedStake: number;
             stake: number;
-            frictionLevel: number;
             confirmation?: components["schemas"]["ConfirmationRequest"];
             /** Format: date-time */
             nextAllocationAt?: string;

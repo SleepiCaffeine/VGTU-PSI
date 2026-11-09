@@ -41,14 +41,11 @@ func toSession(session model.Session) gen.Session {
 	return response
 }
 
-func toDecision(decision model.Decision) gen.Decision {
+func toBetDecision(decision model.BetDecision) gen.Decision {
 	response := gen.Decision{
-		Outcome:          string(decision.Outcome),
-		Reason:           string(decision.Reason),
-		RequestedStake:   decision.RequestedStake,
-		Stake:            decision.Stake,
-		FrictionLevel:    decision.FrictionLevel,
-		NextAllocationAt: decision.NextAllocationAt,
+		Outcome: string(decision.Outcome),
+		Reason:  string(decision.Verdict.Reason),
+		Stake:   decision.Stake,
 	}
 	if decision.Confirmation != nil {
 		response.Confirmation = &gen.ConfirmationRequest{
@@ -61,8 +58,16 @@ func toDecision(decision model.Decision) gen.Decision {
 	return response
 }
 
+func toSessionDecision(decision model.SessionDecision) gen.Decision {
+	return gen.Decision{
+		Outcome:          string(decision.Outcome()),
+		Reason:           string(decision.Verdict.Reason),
+		NextAllocationAt: decision.NextAllocationAt,
+	}
+}
+
 func toSessionStartResult(result model.SessionStartResult) gen.SessionStartResult {
-	response := gen.SessionStartResult{Decision: toDecision(result.Decision)}
+	response := gen.SessionStartResult{Decision: toSessionDecision(result.Decision)}
 	if result.Session != nil {
 		session := toSession(*result.Session)
 		response.Session = &session
@@ -72,7 +77,7 @@ func toSessionStartResult(result model.SessionStartResult) gen.SessionStartResul
 
 func toBetResult(result model.BetResult) gen.BetResult {
 	response := gen.BetResult{
-		Decision: toDecision(result.Decision),
+		Decision: toBetDecision(result.Decision),
 		Balance:  result.Balance,
 		Session:  toSession(result.Session),
 	}

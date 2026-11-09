@@ -2,28 +2,22 @@ package engine
 
 import "github.com/SleepiCaffeine/VGTU-PSI/internal/model"
 
-type stakeLimitsRule struct{}
-
-func (stakeLimitsRule) Name() string { return "stake_limits" }
-
-func (stakeLimitsRule) Evaluate(in Input, d *model.Decision) bool {
+// limitStake returns the stake that may be played and why. A zero stake means none may be.
+func limitStake(in BetInput) (int, model.Reason) {
 	if in.RequestedStake <= 0 {
-		return reject(d, model.ReasonInvalidStake)
+		return 0, model.ReasonInvalidStake
 	}
 	allowed, capReason := tightestLimit(in)
 	if allowed <= 0 {
-		return reject(d, model.ReasonNoStakeAvailable)
+		return 0, model.ReasonNoStakeAvailable
 	}
 	if in.RequestedStake <= allowed {
-		return false
+		return in.RequestedStake, model.ReasonRulesPassed
 	}
-	d.Outcome = model.OutcomeAcceptedCapped
-	d.Reason = capReason
-	d.Stake = allowed
-	return false
+	return allowed, capReason
 }
 
-func tightestLimit(in Input) (int, model.Reason) {
+func tightestLimit(in BetInput) (int, model.Reason) {
 	allowed := in.Settings.MaxStake
 	reason := model.ReasonMaxStakeCap
 	if in.Plan.Balance < allowed {

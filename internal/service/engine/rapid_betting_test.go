@@ -36,18 +36,18 @@ func TestRapidBetting(t *testing.T) {
 			last := now.Add(-tt.gap)
 			s.BetCount, s.RapidStreak, s.LastBetAt = 1, tt.streak, &last
 
-			d := engine.Default().DecideBet(engine.Input{
-				Now: now, Settings: tt.settings, Plan: plan(500, 1), Session: &s, RequestedStake: 20, HouseEdge: rouletteEdge,
+			d := engine.Default().DecideBet(engine.BetInput{
+				Now: now, Settings: tt.settings, Plan: plan(500, 1), Session: s, RequestedStake: 20, HouseEdge: rouletteEdge,
 			})
 
-			if d.Outcome != tt.wantOutcome || d.Reason != tt.wantReason {
-				t.Fatalf("decision = %s/%s, want %s/%s", d.Outcome, d.Reason, tt.wantOutcome, tt.wantReason)
+			if d.Outcome != tt.wantOutcome || d.Verdict.Reason != tt.wantReason {
+				t.Fatalf("decision = %s/%s, want %s/%s", d.Outcome, d.Verdict.Reason, tt.wantOutcome, tt.wantReason)
 			}
-			if d.Effects.RapidFlag != tt.wantFlag || (d.Effects.BreakUntil != nil) != tt.wantFlag {
-				t.Errorf("effects = %+v, want flag and break %v", d.Effects, tt.wantFlag)
+			if d.Verdict.Effects.RapidFlag != tt.wantFlag || (d.Verdict.Effects.BreakUntil != nil) != tt.wantFlag {
+				t.Errorf("effects = %+v, want flag and break %v", d.Verdict.Effects, tt.wantFlag)
 			}
-			if tt.wantFlag && d.Effects.AlertReason != model.ReasonRapidBetting {
-				t.Errorf("alert reason = %q", d.Effects.AlertReason)
+			if tt.wantFlag && d.Verdict.Effects.AlertReason != model.ReasonRapidBetting {
+				t.Errorf("alert reason = %q", d.Verdict.Effects.AlertReason)
 			}
 		})
 	}
@@ -60,15 +60,15 @@ func TestSpammingEqualStakesIsStopped(t *testing.T) {
 	rejectedOnBet := 0
 
 	for attempt := 1; attempt <= 10 && rejectedOnBet == 0; attempt++ {
-		d := engine.Default().DecideBet(engine.Input{
-			Now: at, Settings: rapidSettings(), Plan: p, Session: &s, RequestedStake: 20, HouseEdge: rouletteEdge,
+		d := engine.Default().DecideBet(engine.BetInput{
+			Now: at, Settings: rapidSettings(), Plan: p, Session: s, RequestedStake: 20, HouseEdge: rouletteEdge,
 		})
-		if d.Reason == model.ReasonRapidBetting {
+		if d.Verdict.Reason == model.ReasonRapidBetting {
 			rejectedOnBet = attempt
-			engine.ApplyEffects(&s, d.Effects, at)
+			s = engine.ApplyEffects(s, d.Verdict.Effects, at)
 			break
 		}
-		engine.SettleRound(&p, &s, rapidSettings(), d.Stake, d.Stake, at)
+		p, s = engine.SettleRound(p, s, rapidSettings(), d.Stake, d.Stake, at)
 		at = at.Add(time.Second)
 	}
 

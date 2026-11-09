@@ -3,7 +3,7 @@ package engine
 // Default builds the engine with the registered rules, in evaluation order.
 func Default() *Engine {
 	return New(
-		[]Rule{
+		[]SessionRule{
 			noOpenSessionRule{},
 			noCreditsRule{},
 			chasingLockoutRule{},
@@ -12,13 +12,11 @@ func Default() *Engine {
 			weeklySessionLimitRule{},
 			cooldownRule{},
 		},
-		[]Rule{
+		[]BetRule{
 			sessionActiveRule{},
 			forcedBreakRule{},
 			rapidBettingRule{},
 			chasingRule{},
-			stakeLimitsRule{},
-			frictionRule{},
 		},
 	)
 }

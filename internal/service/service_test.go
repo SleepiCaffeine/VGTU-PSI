@@ -89,8 +89,8 @@ func TestChasingLimitPersistsEndAndAlert(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if result.Decision.Reason != model.ReasonChasingLimit || result.Balance != 480 {
-		t.Errorf("result = %s balance %d", result.Decision.Reason, result.Balance)
+	if result.Decision.Verdict.Reason != model.ReasonChasingLimit || result.Balance != 480 {
+		t.Errorf("result = %s balance %d", result.Decision.Verdict.Reason, result.Balance)
 	}
 	if m.sessions[10].EndReason != model.ReasonChasingLimit || m.sessions[10].ChasingSignals != 3 {
 		t.Errorf("session = %+v", m.sessions[10])
@@ -161,8 +161,8 @@ func TestConfirmationIsSingleUse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Decision.Outcome != attempt.wantOutcome || result.Decision.Reason != attempt.wantReason {
-				t.Fatalf("decision = %s/%s", result.Decision.Outcome, result.Decision.Reason)
+			if result.Decision.Outcome != attempt.wantOutcome || result.Decision.Verdict.Reason != attempt.wantReason {
+				t.Fatalf("decision = %s/%s", result.Decision.Outcome, result.Decision.Verdict.Reason)
 			}
 			if result.Balance != attempt.wantBalance {
 				t.Errorf("balance = %d, want %d", result.Balance, attempt.wantBalance)
@@ -232,8 +232,8 @@ func TestStartSession(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if result.Decision.Outcome != tt.wantOutcome || result.Decision.Reason != tt.wantReason {
-				t.Errorf("decision = %s/%s", result.Decision.Outcome, result.Decision.Reason)
+			if result.Decision.Outcome() != tt.wantOutcome || result.Decision.Verdict.Reason != tt.wantReason {
+				t.Errorf("decision = %s/%s", result.Decision.Outcome(), result.Decision.Verdict.Reason)
 			}
 			if (result.Session != nil) != tt.wantSession {
 				t.Errorf("session = %+v", result.Session)
@@ -275,8 +275,8 @@ func TestRestartCannotDodgeChasingRules(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if result.Decision.Reason != tt.wantReason {
-				t.Fatalf("reason = %s, want %s", result.Decision.Reason, tt.wantReason)
+			if result.Decision.Verdict.Reason != tt.wantReason {
+				t.Fatalf("reason = %s, want %s", result.Decision.Verdict.Reason, tt.wantReason)
 			}
 			if tt.wantNext != nil && (result.Decision.NextAllocationAt == nil || !result.Decision.NextAllocationAt.Equal(*tt.wantNext)) {
 				t.Errorf("next allocation = %v, want %v", result.Decision.NextAllocationAt, tt.wantNext)
@@ -299,8 +299,8 @@ func TestChasingSignalsCarryAcrossSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if result.Decision.Reason != model.ReasonChasingLimit {
-		t.Errorf("reason = %s, want CHASING_LIMIT", result.Decision.Reason)
+	if result.Decision.Verdict.Reason != model.ReasonChasingLimit {
+		t.Errorf("reason = %s, want CHASING_LIMIT", result.Decision.Verdict.Reason)
 	}
 	if m.sessions[11].EndReason != model.ReasonChasingLimit {
 		t.Errorf("session = %+v", m.sessions[11])
